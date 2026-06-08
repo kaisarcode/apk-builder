@@ -252,7 +252,14 @@ myportfolio/bin/myportfolio.aab
 - Accepts icons from local files or remote URLs
 - Generates icons automatically for all densities
 - Compatible with Android SDK 24-34
-- Tested for personal use in a clean Ubuntu 24 environment
+
+---
+
+## Beta Notice
+
+This is a beta project tested only on Debian x86_64. It was created out of a personal need for these libraries, but no guarantees are provided regarding its stability or future support. You are free to test it, use it, and modify it as you please.
+
+If you'd like to reach out, you can send an email to kaisar@kaisarcode.com. Please note that I do not accept pull requests; the goal is to avoid long-term dependency on platforms like GitHub, and I do not maintain fixed infrastructure to guarantee long-term stability for these projects.
 
 ---
 
