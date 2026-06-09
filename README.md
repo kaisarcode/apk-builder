@@ -16,7 +16,7 @@ No Android Studio, no Gradle - just the Android SDK and a shell.
 Make sure your system includes:
 
 - Android SDK (with build-tools and platforms)
-- Java JDK 8+
+- Java JDK 11+
 - POSIX shell (Linux, macOS, or WSL)
 - ImageMagick (*convert*) - for icon generation
 - Standard command-line tools:
