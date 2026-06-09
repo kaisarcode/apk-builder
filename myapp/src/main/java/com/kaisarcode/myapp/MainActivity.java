@@ -3,7 +3,6 @@ package com.kaisarcode.myapp;
 import android.app.Activity;
 import android.os.Bundle;
 import android.webkit.WebView;
-import android.webkit.WebViewClient;
 import android.content.res.Resources;
 
 
@@ -11,6 +10,7 @@ public class MainActivity extends Activity {
     private WebView webView;
     private static final String WEBVIEW_URL = "https://google.com/";
     private static final String JS_INTERFACE_NAME = "AndroidBridge";
+    private static final String[] TRUSTED_ORIGINS = { "https://google.com" };
 
     @Override
     public void onCreate(Bundle savedInstanceState) {
@@ -26,9 +26,9 @@ public class MainActivity extends Activity {
 
         webView.getSettings().setJavaScriptEnabled(true);
         webView.getSettings().setDomStorageEnabled(true);
-        webView.setWebViewClient(new WebViewClient());
+        webView.setWebViewClient(new TrustedWebViewClient(this, TRUSTED_ORIGINS));
 
-        webView.addJavascriptInterface( new JSBridge(this), JS_INTERFACE_NAME );
+        webView.addJavascriptInterface(new JSBridge(this, webView, TRUSTED_ORIGINS), JS_INTERFACE_NAME);
         webView.loadUrl(WEBVIEW_URL);
     }
 

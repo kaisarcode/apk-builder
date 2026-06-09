@@ -10,6 +10,7 @@ PROJECT_NAME="myapp"
 PACKAGE_NAME="com.kaisarcode.myapp"
 WEBVIEW_URL="https://google.com/"
 ICON_SOURCE_FILE="./icon.svg"
+TRUSTED_ORIGINS=""
 IS_FULLSCREEN="false"
 VERSION_CODE=1
 VERSION_NAME="1.0"
@@ -87,6 +88,7 @@ DEBUG_KEYSTORE="$HOME/.android/debug.keystore"
 MANIFEST_FILE="$BASE_DIR/AndroidManifest.xml"
 MAIN_ACTIVITY_FILE="$SRC_DIR/MainActivity.java"
 JS_INTERFACE_FILE="$SRC_DIR/JSBridge.java"
+WEBVIEW_CLIENT_FILE="$SRC_DIR/TrustedWebViewClient.java"
 
 UNSIGNED_APK_TEMP="$TEMP_ROOT_DIR/unsigned.apk"
 ALIGNED_APK_TEMP="$TEMP_ROOT_DIR/aligned.apk"
@@ -189,6 +191,30 @@ setup_release_signing () {
     fi
 }
 
+# Extracts scheme://host[:port] from a remote URL.
+# @param $1 Remote URL.
+# @return Prints the origin or fails.
+extract_origin () {
+    INPUT_URL="$1"
+
+    case "$INPUT_URL" in
+        http://*|https://*)
+            SCHEME="${INPUT_URL%%://*}"
+            REMAINDER="${INPUT_URL#*://}"
+            HOST_AND_PORT="${REMAINDER%%/*}"
+
+            if [ -z "$HOST_AND_PORT" ]; then
+                return 1
+            fi
+
+            printf '%s://%s\n' "$SCHEME" "$HOST_AND_PORT"
+            ;;
+        *)
+            return 1
+            ;;
+    esac
+}
+
 # Builds the Android App Bundle.
 # @return None.
 build_aab () {
@@ -232,7 +258,8 @@ build_aab () {
         MODULE_CONTENTS="$MODULE_CONTENTS assets"
     fi
 
-    (cd "$FINAL_MODULE_DIR" && zip -r -q "$ABS_BASE_MODULE_ZIP" "$MODULE_CONTENTS") || { echo "Error: ZIP tool failed to re-package module."; exit 1; }
+    # Intentionally expand MODULE_CONTENTS into separate zip paths.
+    (cd "$FINAL_MODULE_DIR" && zip -r -q "$ABS_BASE_MODULE_ZIP" $MODULE_CONTENTS) || { echo "Error: ZIP tool failed to re-package module."; exit 1; }
 
     java -jar "$BUNDLETOOL_JAR" build-bundle \
         --modules="$BASE_MODULE_ZIP" \
@@ -342,6 +369,7 @@ rm -f "$ICON_TEMP_FILE"
 echo "Icon Generation complete."
 
 ORIGINAL_WEBVIEW_URL="$WEBVIEW_URL"
+RESOLVED_TRUSTED_ORIGINS="$TRUSTED_ORIGINS"
 
 if [ -d "$ASSETS_DIR" ]; then
     rm -rf "$ASSETS_DIR"
@@ -381,6 +409,21 @@ else
     WEBVIEW_URL="file:///android_asset/$FILENAME"
     echo "Updated WEBVIEW_URL to: $WEBVIEW_URL"
 fi
+
+if [ -z "$RESOLVED_TRUSTED_ORIGINS" ]; then
+    DEFAULT_TRUSTED_ORIGIN=$(extract_origin "$WEBVIEW_URL" 2>/dev/null)
+    if [ -n "$DEFAULT_TRUSTED_ORIGIN" ]; then
+        RESOLVED_TRUSTED_ORIGINS="$DEFAULT_TRUSTED_ORIGIN"
+    fi
+fi
+
+JAVA_TRUSTED_ORIGINS=""
+for ORIGIN in $RESOLVED_TRUSTED_ORIGINS; do
+    if [ -n "$JAVA_TRUSTED_ORIGINS" ]; then
+        JAVA_TRUSTED_ORIGINS="$JAVA_TRUSTED_ORIGINS, "
+    fi
+    JAVA_TRUSTED_ORIGINS="$JAVA_TRUSTED_ORIGINS\"$ORIGIN\""
+done
 
 cat << EOF > "$MANIFEST_FILE"
 <?xml version="1.0" encoding="utf-8"?>
@@ -454,24 +497,91 @@ package $PACKAGE_NAME;
 
 import android.content.Context;
 import android.webkit.JavascriptInterface;
+import android.webkit.WebView;
 import android.widget.Toast;
 import android.net.ConnectivityManager;
 import android.net.NetworkInfo;
+import java.net.URI;
 
 public class JSBridge {
-    private Context context;
+    private static final String LOCAL_ASSET_PREFIX = "file:///android_asset/";
+    private final Context context;
+    private final WebView webView;
+    private final String[] trustedOrigins;
 
-    public JSBridge(Context context) {
+    public JSBridge(Context context, WebView webView, String[] trustedOrigins) {
         this.context = context;
+        this.webView = webView;
+        this.trustedOrigins = trustedOrigins;
+    }
+
+    public static boolean isTrustedUrl(String url, String[] trustedOrigins) {
+        if (url == null || url.isEmpty()) {
+            return false;
+        }
+
+        if (url.startsWith(LOCAL_ASSET_PREFIX)) {
+            return true;
+        }
+
+        try {
+            URI parsedUrl = URI.create(url);
+            String origin = normalizeOrigin(parsedUrl);
+
+            if (origin == null) {
+                return false;
+            }
+
+            for (String trustedOrigin : trustedOrigins) {
+                if (origin.equals(trustedOrigin)) {
+                    return true;
+                }
+            }
+        } catch (IllegalArgumentException ignored) {
+            return false;
+        }
+
+        return false;
+    }
+
+    private static String normalizeOrigin(URI uri) {
+        String scheme = uri.getScheme();
+        String host = uri.getHost();
+
+        if (scheme == null || host == null) {
+            return null;
+        }
+
+        scheme = scheme.toLowerCase();
+        host = host.toLowerCase();
+
+        int port = uri.getPort();
+        if (port == -1) {
+            return scheme + "://" + host;
+        }
+
+        return scheme + "://" + host + ":" + port;
+    }
+
+    private boolean canUseBridge() {
+        return isTrustedUrl(webView.getUrl(), trustedOrigins);
     }
 
     @JavascriptInterface
     public void showToast(String message) {
+        if (!canUseBridge()) {
+            return;
+        }
+
         Toast.makeText(context, message, Toast.LENGTH_SHORT).show();
     }
 
     @JavascriptInterface
     public boolean isOnline() {
+        if (!canUseBridge()) {
+            return false;
+        }
+
         ConnectivityManager cm = (ConnectivityManager) context.getSystemService(Context.CONNECTIVITY_SERVICE);
         if (cm != null) {
             NetworkInfo netInfo = cm.getActiveNetworkInfo();
@@ -482,13 +592,59 @@ public class JSBridge {
 }
 EOF
 
+cat << EOF > "$SRC_DIR/TrustedWebViewClient.java"
+package $PACKAGE_NAME;
+
+import android.content.Context;
+import android.content.Intent;
+import android.net.Uri;
+import android.webkit.WebResourceRequest;
+import android.webkit.WebView;
+import android.webkit.WebViewClient;
+
+public class TrustedWebViewClient extends WebViewClient {
+    private final Context context;
+    private final String[] trustedOrigins;
+
+    public TrustedWebViewClient(Context context, String[] trustedOrigins) {
+        this.context = context;
+        this.trustedOrigins = trustedOrigins;
+    }
+
+    private boolean openExternally(String url) {
+        try {
+            context.startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse(url)));
+            return true;
+        } catch (Exception ignored) {
+            return true;
+        }
+    }
+
+    private boolean handleNavigation(String url) {
+        if (JSBridge.isTrustedUrl(url, trustedOrigins)) {
+            return false;
+        }
+
+        return openExternally(url);
+    }
+
+    @Override
+    public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest request) {
+        if (!request.isForMainFrame()) {
+            return false;
+        }
+
+        return handleNavigation(request.getUrl().toString());
+    }
+}
+EOF
+
 cat << EOF > "$SRC_DIR/MainActivity.java"
 package $PACKAGE_NAME;
 
 import android.app.Activity;
 import android.os.Bundle;
 import android.webkit.WebView;
-import android.webkit.WebViewClient;
 import android.content.res.Resources;
 $FULLSCREEN_IMPORTS
 
@@ -496,6 +652,7 @@ public class MainActivity extends Activity {
     private WebView webView;
     private static final String WEBVIEW_URL = "$WEBVIEW_URL";
     private static final String JS_INTERFACE_NAME = "AndroidBridge";
+    private static final String[] TRUSTED_ORIGINS = { $JAVA_TRUSTED_ORIGINS };
 
     @Override
     public void onCreate(Bundle savedInstanceState) {
@@ -511,9 +668,9 @@ $FULLSCREEN_SETUP
 
         webView.getSettings().setJavaScriptEnabled(true);
         webView.getSettings().setDomStorageEnabled(true);
-        webView.setWebViewClient(new WebViewClient());
+        webView.setWebViewClient(new TrustedWebViewClient(this, TRUSTED_ORIGINS));
 
-        webView.addJavascriptInterface( new JSBridge(this), JS_INTERFACE_NAME );
+        webView.addJavascriptInterface(new JSBridge(this, webView, TRUSTED_ORIGINS), JS_INTERFACE_NAME);
         webView.loadUrl(WEBVIEW_URL);
     }
 
@@ -543,6 +700,7 @@ javac -g:none --release 11 \
     -classpath "$ANDROID_JAR" \
     -d "$TEMP_CLASSES_DIR" \
     "$R_PACKAGE_DIR/R.java" \
+    "$WEBVIEW_CLIENT_FILE" \
     "$MAIN_ACTIVITY_FILE" \
     "$JS_INTERFACE_FILE" || { echo "Error: JAVAC failed."; exit 1; }
 
