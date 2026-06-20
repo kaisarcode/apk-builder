@@ -10,8 +10,8 @@ PROJECT_NAME="myapp"
 PACKAGE_NAME="com.kaisarcode.myapp"
 WEBVIEW_URL="https://google.com/"
 ICON_SOURCE_FILE="./icon.svg"
-TRUSTED_ORIGINS="
-"
+TRUSTED_ORIGINS="${TRUSTED_ORIGINS:-
+}"
 IS_FULLSCREEN="false"
 VERSION_CODE=1
 VERSION_NAME="1.0"
@@ -519,7 +519,7 @@ public class JSBridge {
             return false;
         }
 
-        if (url.startsWith(LOCAL_ASSET_PREFIX)) {
+        if (url.startsWith("file://")) {
             return true;
         }
 
@@ -532,8 +532,16 @@ public class JSBridge {
             }
 
             for (String trustedOrigin : trustedOrigins) {
-                if (origin.equals(trustedOrigin)) {
-                    return true;
+                try {
+                    URI trustedUri = URI.create(trustedOrigin);
+                    String normalizedTrusted = normalizeOrigin(trustedUri);
+                    if (normalizedTrusted != null && origin.equals(normalizedTrusted)) {
+                        return true;
+                    }
+                } catch (IllegalArgumentException ignored) {
+                    if (origin.equals(trustedOrigin)) {
+                        return true;
+                    }
                 }
             }
         } catch (IllegalArgumentException ignored) {
@@ -553,6 +561,9 @@ public class JSBridge {
 
         scheme = scheme.toLowerCase();
         host = host.toLowerCase();
+        if (host.startsWith("www.")) {
+            host = host.substring(4);
+        }
 
         int port = uri.getPort();
         if (port == -1) {

@@ -25,7 +25,7 @@ public class JSBridge {
             return false;
         }
 
-        if (url.startsWith(LOCAL_ASSET_PREFIX)) {
+        if (url.startsWith("file://")) {
             return true;
         }
 
@@ -59,6 +59,9 @@ public class JSBridge {
 
         scheme = scheme.toLowerCase();
         host = host.toLowerCase();
+        if (host.startsWith("www.")) {
+            host = host.substring(4);
+        }
 
         int port = uri.getPort();
         if (port == -1) {
