@@ -10,7 +10,8 @@ PROJECT_NAME="myapp"
 PACKAGE_NAME="com.kaisarcode.myapp"
 WEBVIEW_URL="https://google.com/"
 ICON_SOURCE_FILE="./icon.svg"
-TRUSTED_ORIGINS=""
+TRUSTED_ORIGINS="
+"
 IS_FULLSCREEN="false"
 VERSION_CODE=1
 VERSION_NAME="1.0"
@@ -253,13 +254,11 @@ build_aab () {
     mkdir -p "$FINAL_MODULE_DIR/dex"
     cp "$DEX_FILE" "$FINAL_MODULE_DIR/dex/classes.dex"
 
-    MODULE_CONTENTS="manifest res dex resources.pb"
     if [ -d "$FINAL_MODULE_DIR/assets" ]; then
-        MODULE_CONTENTS="$MODULE_CONTENTS assets"
+        (cd "$FINAL_MODULE_DIR" && zip -r -q "$ABS_BASE_MODULE_ZIP" manifest res dex resources.pb assets) || { echo "Error: ZIP tool failed to re-package module."; exit 1; }
+    else
+        (cd "$FINAL_MODULE_DIR" && zip -r -q "$ABS_BASE_MODULE_ZIP" manifest res dex resources.pb) || { echo "Error: ZIP tool failed to re-package module."; exit 1; }
     fi
-
-    # Intentionally expand MODULE_CONTENTS into separate zip paths.
-    (cd "$FINAL_MODULE_DIR" && zip -r -q "$ABS_BASE_MODULE_ZIP" $MODULE_CONTENTS) || { echo "Error: ZIP tool failed to re-package module."; exit 1; }
 
     java -jar "$BUNDLETOOL_JAR" build-bundle \
         --modules="$BASE_MODULE_ZIP" \
@@ -410,10 +409,12 @@ else
     echo "Updated WEBVIEW_URL to: $WEBVIEW_URL"
 fi
 
-if [ -z "$RESOLVED_TRUSTED_ORIGINS" ]; then
-    DEFAULT_TRUSTED_ORIGIN=$(extract_origin "$WEBVIEW_URL" 2>/dev/null)
-    if [ -n "$DEFAULT_TRUSTED_ORIGIN" ]; then
+DEFAULT_TRUSTED_ORIGIN=$(extract_origin "$WEBVIEW_URL" 2>/dev/null)
+if [ -n "$DEFAULT_TRUSTED_ORIGIN" ]; then
+    if [ -z "$RESOLVED_TRUSTED_ORIGINS" ]; then
         RESOLVED_TRUSTED_ORIGINS="$DEFAULT_TRUSTED_ORIGIN"
+    else
+        RESOLVED_TRUSTED_ORIGINS="$DEFAULT_TRUSTED_ORIGIN $RESOLVED_TRUSTED_ORIGINS"
     fi
 fi
 
@@ -438,11 +439,14 @@ cat << EOF > "$MANIFEST_FILE"
         android:roundIcon="@mipmap/ic_launcher"
         android:label="@string/app_name"
         android:supportsRtl="true"
+        android:resizeableActivity="true"
         android:theme="@android:style/Theme.DeviceDefault.NoActionBar">
+        <meta-data android:name="android.max_aspect" android:value="2.4" />
         <activity
             android:name="$PACKAGE_NAME.MainActivity"
             android:exported="true"
-            android:configChanges="orientation|screenSize">
+            android:windowSoftInputMode="adjustResize"
+            android:configChanges="orientation|screenSize|keyboardHidden|smallestScreenSize|screenLayout">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
@@ -463,15 +467,10 @@ EOF
 
 cat << EOF > "$LAYOUT_DIR/activity_main.xml"
 <?xml version="1.0" encoding="utf-8"?>
-<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<WebView xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/webview"
     android:layout_width="match_parent"
-    android:layout_height="match_parent"
-    android:orientation="vertical">
-    <WebView
-        android:id="@+id/webview"
-        android:layout_width="match_parent"
-        android:layout_height="match_parent" />
-</LinearLayout>
+    android:layout_height="match_parent" />
 EOF
 
 echo "Writing Java Code..."
@@ -668,6 +667,9 @@ $FULLSCREEN_SETUP
 
         webView.getSettings().setJavaScriptEnabled(true);
         webView.getSettings().setDomStorageEnabled(true);
+        webView.getSettings().setUseWideViewPort(true);
+        webView.getSettings().setLoadWithOverviewMode(true);
+        webView.setVerticalScrollBarEnabled(false);
         webView.setWebViewClient(new TrustedWebViewClient(this, TRUSTED_ORIGINS));
 
         webView.addJavascriptInterface(new JSBridge(this, webView, TRUSTED_ORIGINS), JS_INTERFACE_NAME);
