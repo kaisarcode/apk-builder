@@ -38,8 +38,16 @@ public class JSBridge {
             }
 
             for (String trustedOrigin : trustedOrigins) {
-                if (origin.equals(trustedOrigin)) {
-                    return true;
+                try {
+                    URI trustedUri = URI.create(trustedOrigin);
+                    String normalizedTrusted = normalizeOrigin(trustedUri);
+                    if (normalizedTrusted != null && origin.equals(normalizedTrusted)) {
+                        return true;
+                    }
+                } catch (IllegalArgumentException ignored) {
+                    if (origin.equals(trustedOrigin)) {
+                        return true;
+                    }
                 }
             }
         } catch (IllegalArgumentException ignored) {
