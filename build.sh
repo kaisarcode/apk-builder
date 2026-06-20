@@ -5,11 +5,11 @@
 # Website: https://kaisarcode.com
 # License: https://www.gnu.org/licenses/gpl-3.0.html
 
-DISPLAY_NAME="My App"
-PROJECT_NAME="myapp"
-PACKAGE_NAME="com.kaisarcode.myapp"
-WEBVIEW_URL="https://google.com/"
-ICON_SOURCE_FILE="./icon.svg"
+DISPLAY_NAME="${DISPLAY_NAME:-My App}"
+PROJECT_NAME="${PROJECT_NAME:-myapp}"
+PACKAGE_NAME="${PACKAGE_NAME:-com.kaisarcode.myapp}"
+WEBVIEW_URL="${WEBVIEW_URL:-https://google.com/}"
+ICON_SOURCE_FILE="${ICON_SOURCE_FILE:-./icon.svg}"
 TRUSTED_ORIGINS="${TRUSTED_ORIGINS:-
 }"
 IS_FULLSCREEN="false"
@@ -38,7 +38,7 @@ fi
 SDK_ZIP="${SDK_ZIP:-${DEFAULT_CMDLINE_PREFIX}.zip}"
 
 BASE_DIR="./$PROJECT_NAME"
-PACKAGE_SUBPATH="$(echo $PACKAGE_NAME | tr . /)"
+PACKAGE_SUBPATH="$(echo "$PACKAGE_NAME" | tr . /)"
 SRC_DIR="$BASE_DIR/src/main/java/$PACKAGE_SUBPATH"
 RES_DIR="$BASE_DIR/res"
 LAYOUT_DIR="$RES_DIR/layout"
