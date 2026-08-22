@@ -13,6 +13,8 @@ ICON_SOURCE_FILE="${ICON_SOURCE_FILE:-./icon.svg}"
 TRUSTED_ORIGINS="${TRUSTED_ORIGINS:-
 }"
 IS_FULLSCREEN="false"
+KCLIBS="${KCLIBS:-}"
+KCLIB_DIR="${KCLIB_DIR:-}"
 VERSION_CODE=1
 VERSION_NAME="1.0"
 TARGET_SDK="34"
@@ -290,6 +292,33 @@ build_aab () {
 build_apk () {
     zip -j "$UNSIGNED_APK_TEMP" "$DEX_FILE" || { echo "Error: ZIP tool failed to insert classes.dex." ; exit 1; }
 
+    if [ -n "$KCLIB_DIR" ]; then
+        for ABI_DIR in "$KCLIB_DIR"/*/; do
+            ABI_NAME=$(basename "$ABI_DIR")
+            for SO_FILE in "$ABI_DIR"*.so; do
+                if [ -f "$SO_FILE" ]; then
+                    SO_NAME=$(basename "$SO_FILE")
+                    zip -j "$UNSIGNED_APK_TEMP" "$SO_FILE" -d "lib/$ABI_NAME/$SO_NAME" 2>/dev/null || \
+                    (cd "$(dirname "$SO_FILE")" && zip -u "$(realpath "$UNSIGNED_APK_TEMP")" "$SO_NAME" -x "*" 2>/dev/null)
+                fi
+            done
+        done
+        if [ -d "$KCLIB_DIR" ]; then
+            NATIVE_TEMP="$TEMP_ROOT_DIR/native_libs"
+            mkdir -p "$NATIVE_TEMP"
+            for ABI_DIR in "$KCLIB_DIR"/*/; do
+                ABI_NAME=$(basename "$ABI_DIR")
+                NATIVE_ABI_DIR="$NATIVE_TEMP/lib/$ABI_NAME"
+                mkdir -p "$NATIVE_ABI_DIR"
+                cp "$ABI_DIR"*.so "$NATIVE_ABI_DIR/" 2>/dev/null
+            done
+            if [ -d "$NATIVE_TEMP/lib" ]; then
+                (cd "$NATIVE_TEMP" && zip -r -q "$(realpath "$UNSIGNED_APK_TEMP")" lib/) 2>/dev/null
+            fi
+            rm -rf "$NATIVE_TEMP"
+        fi
+    fi
+
     echo "Generating debug KeyStore if it does not exist..."
     if [ ! -f "$DEBUG_KEYSTORE" ]; then
         keytool -genkey -v -keystore "$DEBUG_KEYSTORE" \
@@ -442,6 +471,15 @@ cat << EOF > "$MANIFEST_FILE"
         android:resizeableActivity="true"
         android:theme="@android:style/Theme.DeviceDefault.NoActionBar">
         <meta-data android:name="android.max_aspect" android:value="2.4" />
+EOF
+
+if [ -n "$KCLIBS" ]; then
+    cat << EOF >> "$MANIFEST_FILE"
+        <meta-data android:name="com.kaisarcode.kclib.allowed_kclibs" android:value="$KCLIBS" />
+EOF
+fi
+
+cat << EOF >> "$MANIFEST_FILE"
         <activity
             android:name="$PACKAGE_NAME.MainActivity"
             android:exported="true"
@@ -602,6 +640,19 @@ public class JSBridge {
 }
 EOF
 
+cat << 'JEOF' > "$SRC_DIR/KclibBridge.java"
+package PACKAGE_PLACEHOLDER;
+
+public final class KclibBridge {
+    static {
+        System.loadLibrary("jni");
+    }
+
+    public static native String run(String payloadJson);
+}
+JEOF
+sed -i "s/PACKAGE_PLACEHOLDER/$PACKAGE_NAME/" "$SRC_DIR/KclibBridge.java"
+
 cat << EOF > "$SRC_DIR/TrustedWebViewClient.java"
 package $PACKAGE_NAME;
 
@@ -655,6 +706,7 @@ package $PACKAGE_NAME;
 import android.app.Activity;
 import android.os.Bundle;
 import android.webkit.WebView;
+import android.webkit.WebViewClient;
 import android.content.res.Resources;
 $FULLSCREEN_IMPORTS
 
@@ -663,6 +715,20 @@ public class MainActivity extends Activity {
     private static final String WEBVIEW_URL = "$WEBVIEW_URL";
     private static final String JS_INTERFACE_NAME = "AndroidBridge";
     private static final String[] TRUSTED_ORIGINS = { $JAVA_TRUSTED_ORIGINS };
+
+    private static final String NATIVE_BRIDGE_SCRIPT =
+        "(function(){if(window.NativeBridge){return;}" +
+        "var __kcPending={};var __kcSeq=0;" +
+        "function __kcReceive(msg){if(msg&&typeof msg.id==='string'){" +
+        "var p=__kcPending[msg.id];if(p){delete __kcPending[msg.id];" +
+        "if(msg.ok){p.resolve(msg.result!==undefined?msg.result:{ok:true});}" +
+        "else{p.reject(msg.error||{code:'INTERNAL_ERROR',message:'Bridge error'});}}return;}}" +
+        "window.__kcReceive=__kcReceive;" +
+        "window.NativeBridge={};function __kcSend(method,params){" +
+        "return new Promise(function(resolve,reject){" +
+        "var id=String(++__kcSeq);__kcPending[id]={resolve:resolve,reject:reject};" +
+        "KclibBridge.run(JSON.stringify({id:id,method:method,params:params===undefined?null:params}));});}" +
+        "window.NativeBridge.invoke=function(method,params){return __kcSend(method,params);};}());";
 
     @Override
     public void onCreate(Bundle savedInstanceState) {
@@ -684,7 +750,16 @@ $FULLSCREEN_SETUP
         webView.setWebViewClient(new TrustedWebViewClient(this, TRUSTED_ORIGINS));
 
         webView.addJavascriptInterface(new JSBridge(this, webView, TRUSTED_ORIGINS), JS_INTERFACE_NAME);
+        webView.addJavascriptInterface(new KclibBridge(), "KclibBridge");
         webView.loadUrl(WEBVIEW_URL);
+    }
+
+    @Override
+    public void onPageFinished(WebView view, String url) {
+        super.onPageFinished(view, url);
+        if (view != null) {
+            view.evaluateJavascript(NATIVE_BRIDGE_SCRIPT, null);
+        }
     }
 
     @Override
@@ -709,13 +784,15 @@ echo "Linking Resources, Manifest, and Generating R.java..."
     --auto-add-overlay || { echo "Error: AAPT2 Link failed."; exit 1; }
 
 echo "Compiling Source Code..."
+KCLIB_BRIDGE_FILE="$SRC_DIR/KclibBridge.java"
 javac -g:none --release 11 \
     -classpath "$ANDROID_JAR" \
     -d "$TEMP_CLASSES_DIR" \
     "$R_PACKAGE_DIR/R.java" \
     "$WEBVIEW_CLIENT_FILE" \
     "$MAIN_ACTIVITY_FILE" \
-    "$JS_INTERFACE_FILE" || { echo "Error: JAVAC failed."; exit 1; }
+    "$JS_INTERFACE_FILE" \
+    "$KCLIB_BRIDGE_FILE" || { echo "Error: JAVAC failed."; exit 1; }
 
 echo "Packaging .class files into temporary JAR..."
 CURRENT_DIR=$(pwd)
