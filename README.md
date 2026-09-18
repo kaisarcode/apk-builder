@@ -6,7 +6,7 @@ Android WebView App Builder
 ## Description
 
 APK-BUILDER is a lightweight POSIX shell script that builds Android apps - mainly WebView-based - directly from the command line.
-It automates every step: generates a full Android project, compiles, signs, and outputs both APK and AAB packages for installation, testing, or Play Store upload.
+It automates every step: generates a full Android project, compiles, signs, and outputs an APK, with optional AAB generation for Play Store distribution.
 No Android Studio, no Gradle - just the Android SDK and a shell.
 
 ---
@@ -21,7 +21,9 @@ Make sure your system includes:
 - ImageMagick (*convert*) - for icon generation
 - *rsvg-convert* (optional) - improved SVG icon rendering when available
 - Standard command-line tools:
-*git*, *curl* (or *wget*), *unzip*, *sed*, *awk*, *zipalign*, *apksigner*, *keytool*, *bundletool*
+*git*, *curl* (or *wget*), *unzip*, *zip*
+
+`zipalign` and `apksigner` are provided by the Android SDK build-tools. `keytool` and `jarsigner` are provided by the JDK. `bundletool` is downloaded automatically when needed for `--release` builds.
 
 ---
 
@@ -97,7 +99,7 @@ By default, it builds a debug APK in *./<project-name>/bin/*.
 
 | Flag | Description |
 |------|--------------|
-| *--clean* | Deletes the existing debug keystore and temporary build data. |
+| *--clean* | Deletes the existing debug keystore before building. |
 | *--release* | Builds a debug APK plus an AAB for Play Store distribution. |
 
 ### Examples
@@ -217,7 +219,6 @@ After building, the results are stored in:
 |------|--------------|
 | *<project>.apk* | Installable debug Android package. |
 | *<project>.aab* | Android App Bundle for Play Store distribution. |
-| *debug.keystore* | Auto-generated debug keystore (if missing). |
 
 Example:
 
@@ -225,6 +226,8 @@ Example:
 myapp/bin/myapp.apk
 myapp/bin/myapp.aab
 ```
+
+The automatically generated debug keystore is stored at `~/.android/debug.keystore`.
 
 ---
 
@@ -289,7 +292,7 @@ myportfolio/bin/myportfolio.aab
 
 ## Notes
 
-- Works fully offline once SDK tools are installed
+- Works offline for local apps once the required Android SDK tools and BundleTool (when building AABs) are already available
 - Supports both remote URLs and local HTML assets
 - Accepts icons from local files or remote URLs
 - Generates icons automatically for all densities
