@@ -10,11 +10,10 @@ PROJECT_NAME="${PROJECT_NAME:-myapp}"
 PACKAGE_NAME="${PACKAGE_NAME:-com.kaisarcode.myapp}"
 WEBVIEW_URL="${WEBVIEW_URL:-https://google.com/}"
 ICON_SOURCE_FILE="${ICON_SOURCE_FILE:-./icon.svg}"
+ICON_BACKGROUND="${ICON_BACKGROUND:-#1a1a1a}"
 TRUSTED_ORIGINS="${TRUSTED_ORIGINS:-
 }"
 IS_FULLSCREEN="false"
-KCLIBS="${KCLIBS:-}"
-KCLIB_DIR="${KCLIB_DIR:-}"
 VERSION_CODE=1
 VERSION_NAME="1.0"
 TARGET_SDK="34"
@@ -52,6 +51,7 @@ MIPMAP_HDPI_DIR="$RES_DIR/mipmap-hdpi"
 MIPMAP_XHDPI_DIR="$RES_DIR/mipmap-xhdpi"
 MIPMAP_XXHDPI_DIR="$RES_DIR/mipmap-xxhdpi"
 MIPMAP_XXXHDPI_DIR="$RES_DIR/mipmap-xxxhdpi"
+MIPMAP_ANYDPI_V26_DIR="$RES_DIR/mipmap-anydpi-v26"
 
 OUTPUT_DIR="$BASE_DIR/bin"
 TEMP_ROOT_DIR="$BASE_DIR/temp"
@@ -224,7 +224,10 @@ build_aab () {
 
     setup_release_signing
 
-    ABS_BASE_MODULE_ZIP="$(pwd)/$BASE_MODULE_ZIP"
+    case "$BASE_MODULE_ZIP" in
+        /*) ABS_BASE_MODULE_ZIP="$BASE_MODULE_ZIP" ;;
+        *)  ABS_BASE_MODULE_ZIP="$(pwd)/$BASE_MODULE_ZIP" ;;
+    esac
 
     if [ ! -f "$DEX_FILE" ]; then
         echo "FATAL ERROR: classes.dex (compiled code) not found. Ensure the common build steps ran successfully."
@@ -292,35 +295,9 @@ build_aab () {
 build_apk () {
     zip -j "$UNSIGNED_APK_TEMP" "$DEX_FILE" || { echo "Error: ZIP tool failed to insert classes.dex." ; exit 1; }
 
-    if [ -n "$KCLIB_DIR" ]; then
-        for ABI_DIR in "$KCLIB_DIR"/*/; do
-            ABI_NAME=$(basename "$ABI_DIR")
-            for SO_FILE in "$ABI_DIR"*.so; do
-                if [ -f "$SO_FILE" ]; then
-                    SO_NAME=$(basename "$SO_FILE")
-                    zip -j "$UNSIGNED_APK_TEMP" "$SO_FILE" -d "lib/$ABI_NAME/$SO_NAME" 2>/dev/null || \
-                    (cd "$(dirname "$SO_FILE")" && zip -u "$(realpath "$UNSIGNED_APK_TEMP")" "$SO_NAME" -x "*" 2>/dev/null)
-                fi
-            done
-        done
-        if [ -d "$KCLIB_DIR" ]; then
-            NATIVE_TEMP="$TEMP_ROOT_DIR/native_libs"
-            mkdir -p "$NATIVE_TEMP"
-            for ABI_DIR in "$KCLIB_DIR"/*/; do
-                ABI_NAME=$(basename "$ABI_DIR")
-                NATIVE_ABI_DIR="$NATIVE_TEMP/lib/$ABI_NAME"
-                mkdir -p "$NATIVE_ABI_DIR"
-                cp "$ABI_DIR"*.so "$NATIVE_ABI_DIR/" 2>/dev/null
-            done
-            if [ -d "$NATIVE_TEMP/lib" ]; then
-                (cd "$NATIVE_TEMP" && zip -r -q "$(realpath "$UNSIGNED_APK_TEMP")" lib/) 2>/dev/null
-            fi
-            rm -rf "$NATIVE_TEMP"
-        fi
-    fi
-
     echo "Generating debug KeyStore if it does not exist..."
     if [ ! -f "$DEBUG_KEYSTORE" ]; then
+        mkdir -p "$(dirname "$DEBUG_KEYSTORE")"
         keytool -genkey -v -keystore "$DEBUG_KEYSTORE" \
             -alias androiddebugkey -storepass android -keypass android -keyalg RSA -keysize 2048 \
             -validity 10000 \
@@ -347,12 +324,14 @@ setup_sdk
 
 mkdir -p "$SRC_DIR" "$LAYOUT_DIR" "$VALUES_DIR" "$OUTPUT_DIR" "$ASSETS_DIR" \
     "$MIPMAP_MDPI_DIR" "$MIPMAP_HDPI_DIR" "$MIPMAP_XHDPI_DIR" \
-    "$MIPMAP_XXHDPI_DIR" "$MIPMAP_XXXHDPI_DIR"
+    "$MIPMAP_XXHDPI_DIR" "$MIPMAP_XXXHDPI_DIR" "$MIPMAP_ANYDPI_V26_DIR"
 rm -rf "$TEMP_ROOT_DIR"
 mkdir -p "$TEMP_CLASSES_DIR" "$FLAT_RES_DIR" "$R_PACKAGE_DIR" "$TEMP_BUILD_DATA_DIR" "$AAB_TEMP_DIR"
 
 DENSITY_PAIRS="mdpi:48x48 hdpi:72x72 xhdpi:96x96 xxhdpi:144x144 xxxhdpi:192x192"
+FOREGROUND_DENSITY_PAIRS="mdpi:108x108 hdpi:162x162 xhdpi:216x216 xxhdpi:324x324 xxxhdpi:432x432"
 ICON_TEMP_FILE="$RES_DIR/temp_icon_file_base"
+ICON_RENDER_FILE="$RES_DIR/temp_icon_render.png"
 
 case "$ICON_SOURCE_FILE" in
     http://*|https://*)
@@ -376,6 +355,16 @@ case "$ICON_SOURCE_FILE" in
         ;;
 esac
 
+ICON_RENDER_SOURCE="$ICON_TEMP_FILE"
+case "$ICON_SOURCE_FILE" in
+    *.svg|*.SVG)
+        if command -v rsvg-convert >/dev/null 2>&1; then
+            rsvg-convert -w 432 -h 432 -o "$ICON_RENDER_FILE" "$ICON_TEMP_FILE" || { echo "Error: SVG icon conversion failed." ; exit 1; }
+            ICON_RENDER_SOURCE="$ICON_RENDER_FILE"
+        fi
+        ;;
+esac
+
 if command -v convert >/dev/null 2>&1; then
     for PAIR in $DENSITY_PAIRS; do
         DENSITY=$(echo "$PAIR" | cut -d: -f1)
@@ -384,15 +373,24 @@ if command -v convert >/dev/null 2>&1; then
         MIPMAP_SUBDIR="$RES_DIR/mipmap-$DENSITY"
         ICON_FINAL_PNG="$MIPMAP_SUBDIR/ic_launcher.png"
 
-        convert "$ICON_TEMP_FILE" -resize "$SIZE" "$ICON_FINAL_PNG" || { echo "Error: ImageMagick conversion failed for $DENSITY." ; exit 1; }
+        convert "$ICON_RENDER_SOURCE" -resize "$SIZE" "$ICON_FINAL_PNG" || { echo "Error: ImageMagick conversion failed for $DENSITY." ; exit 1; }
+    done
+    for PAIR in $FOREGROUND_DENSITY_PAIRS; do
+        DENSITY=$(echo "$PAIR" | cut -d: -f1)
+        SIZE=$(echo "$PAIR" | cut -d: -f2)
+
+        MIPMAP_SUBDIR="$RES_DIR/mipmap-$DENSITY"
+        FOREGROUND_FINAL_PNG="$MIPMAP_SUBDIR/ic_launcher_foreground.png"
+
+        convert -background none "$ICON_RENDER_SOURCE" -resize "$SIZE" -gravity center -extent "$SIZE" "$FOREGROUND_FINAL_PNG" || { echo "Error: ImageMagick adaptive icon generation failed for $DENSITY." ; exit 1; }
     done
 else
     echo "Error: 'convert' (ImageMagick) not found. Cannot generate icons."
-    rm -f "$ICON_TEMP_FILE"
+    rm -f "$ICON_TEMP_FILE" "$ICON_RENDER_FILE"
     exit 1
 fi
 
-rm -f "$ICON_TEMP_FILE"
+rm -f "$ICON_TEMP_FILE" "$ICON_RENDER_FILE"
 
 echo "Icon Generation complete."
 
@@ -473,12 +471,6 @@ cat << EOF > "$MANIFEST_FILE"
         <meta-data android:name="android.max_aspect" android:value="2.4" />
 EOF
 
-if [ -n "$KCLIBS" ]; then
-    cat << EOF >> "$MANIFEST_FILE"
-        <meta-data android:name="com.kaisarcode.kclib.allowed_kclibs" android:value="$KCLIBS" />
-EOF
-fi
-
 cat << EOF >> "$MANIFEST_FILE"
         <activity
             android:name="$PACKAGE_NAME.MainActivity"
@@ -501,6 +493,21 @@ cat << EOF > "$VALUES_DIR/strings.xml"
     <string name="app_name">$DISPLAY_NAME</string>
     <string name="js_interface_name">AndroidBridge</string>
 </resources>
+EOF
+
+cat << EOF > "$VALUES_DIR/icon_colors.xml"
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="icon_background">$ICON_BACKGROUND</color>
+</resources>
+EOF
+
+cat << EOF > "$MIPMAP_ANYDPI_V26_DIR/ic_launcher.xml"
+<?xml version="1.0" encoding="utf-8"?>
+<adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">
+    <background android:drawable="@color/icon_background" />
+    <foreground android:drawable="@mipmap/ic_launcher_foreground" />
+</adaptive-icon>
 EOF
 
 cat << EOF > "$LAYOUT_DIR/activity_main.xml"
@@ -557,7 +564,7 @@ public class JSBridge {
             return false;
         }
 
-        if (url.startsWith("file://")) {
+        if (url.startsWith(LOCAL_ASSET_PREFIX)) {
             return true;
         }
 
@@ -640,19 +647,6 @@ public class JSBridge {
 }
 EOF
 
-cat << 'JEOF' > "$SRC_DIR/KclibBridge.java"
-package PACKAGE_PLACEHOLDER;
-
-public final class KclibBridge {
-    static {
-        System.loadLibrary("jni");
-    }
-
-    public static native String run(String payloadJson);
-}
-JEOF
-sed -i "s/PACKAGE_PLACEHOLDER/$PACKAGE_NAME/" "$SRC_DIR/KclibBridge.java"
-
 cat << EOF > "$SRC_DIR/TrustedWebViewClient.java"
 package $PACKAGE_NAME;
 
@@ -706,7 +700,6 @@ package $PACKAGE_NAME;
 import android.app.Activity;
 import android.os.Bundle;
 import android.webkit.WebView;
-import android.webkit.WebViewClient;
 import android.content.res.Resources;
 $FULLSCREEN_IMPORTS
 
@@ -715,20 +708,6 @@ public class MainActivity extends Activity {
     private static final String WEBVIEW_URL = "$WEBVIEW_URL";
     private static final String JS_INTERFACE_NAME = "AndroidBridge";
     private static final String[] TRUSTED_ORIGINS = { $JAVA_TRUSTED_ORIGINS };
-
-    private static final String NATIVE_BRIDGE_SCRIPT =
-        "(function(){if(window.NativeBridge){return;}" +
-        "var __kcPending={};var __kcSeq=0;" +
-        "function __kcReceive(msg){if(msg&&typeof msg.id==='string'){" +
-        "var p=__kcPending[msg.id];if(p){delete __kcPending[msg.id];" +
-        "if(msg.ok){p.resolve(msg.result!==undefined?msg.result:{ok:true});}" +
-        "else{p.reject(msg.error||{code:'INTERNAL_ERROR',message:'Bridge error'});}}return;}}" +
-        "window.__kcReceive=__kcReceive;" +
-        "window.NativeBridge={};function __kcSend(method,params){" +
-        "return new Promise(function(resolve,reject){" +
-        "var id=String(++__kcSeq);__kcPending[id]={resolve:resolve,reject:reject};" +
-        "KclibBridge.run(JSON.stringify({id:id,method:method,params:params===undefined?null:params}));});}" +
-        "window.NativeBridge.invoke=function(method,params){return __kcSend(method,params);};}());";
 
     @Override
     public void onCreate(Bundle savedInstanceState) {
@@ -750,16 +729,7 @@ $FULLSCREEN_SETUP
         webView.setWebViewClient(new TrustedWebViewClient(this, TRUSTED_ORIGINS));
 
         webView.addJavascriptInterface(new JSBridge(this, webView, TRUSTED_ORIGINS), JS_INTERFACE_NAME);
-        webView.addJavascriptInterface(new KclibBridge(), "KclibBridge");
         webView.loadUrl(WEBVIEW_URL);
-    }
-
-    @Override
-    public void onPageFinished(WebView view, String url) {
-        super.onPageFinished(view, url);
-        if (view != null) {
-            view.evaluateJavascript(NATIVE_BRIDGE_SCRIPT, null);
-        }
     }
 
     @Override
@@ -784,15 +754,13 @@ echo "Linking Resources, Manifest, and Generating R.java..."
     --auto-add-overlay || { echo "Error: AAPT2 Link failed."; exit 1; }
 
 echo "Compiling Source Code..."
-KCLIB_BRIDGE_FILE="$SRC_DIR/KclibBridge.java"
 javac -g:none --release 11 \
     -classpath "$ANDROID_JAR" \
     -d "$TEMP_CLASSES_DIR" \
     "$R_PACKAGE_DIR/R.java" \
     "$WEBVIEW_CLIENT_FILE" \
     "$MAIN_ACTIVITY_FILE" \
-    "$JS_INTERFACE_FILE" \
-    "$KCLIB_BRIDGE_FILE" || { echo "Error: JAVAC failed."; exit 1; }
+    "$JS_INTERFACE_FILE" || { echo "Error: JAVAC failed."; exit 1; }
 
 echo "Packaging .class files into temporary JAR..."
 CURRENT_DIR=$(pwd)

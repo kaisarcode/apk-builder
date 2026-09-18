@@ -25,7 +25,7 @@ public class JSBridge {
             return false;
         }
 
-        if (url.startsWith("file://")) {
+        if (url.startsWith(LOCAL_ASSET_PREFIX)) {
             return true;
         }
 

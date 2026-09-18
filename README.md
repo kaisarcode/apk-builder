@@ -19,6 +19,7 @@ Make sure your system includes:
 - Java JDK 11+
 - POSIX shell (Linux, macOS, or WSL)
 - ImageMagick (*convert*) - for icon generation
+- *rsvg-convert* (optional) - improved SVG icon rendering when available
 - Standard command-line tools:
 *git*, *curl* (or *wget*), *unzip*, *sed*, *awk*, *zipalign*, *apksigner*, *keytool*, *bundletool*
 
@@ -137,6 +138,7 @@ PROJECT_NAME="myapp"
 PACKAGE_NAME="com.kaisarcode.myapp"
 WEBVIEW_URL="https://google.com/"
 ICON_SOURCE_FILE="./icon.svg"
+ICON_BACKGROUND="#1a1a1a"
 TRUSTED_ORIGINS=""
 IS_FULLSCREEN="false"
 VERSION_CODE=1
@@ -182,7 +184,7 @@ The *ICON_SOURCE_FILE* variable accepts:
 - A local image file (SVG, PNG, etc.)
 - An external URL (e.g. *https://example.com/icon.png*) - downloaded automatically with *curl* or *wget*
 
-ImageMagick (**convert**) is used to generate icons in all Android densities automatically.
+ImageMagick (**convert**) is used to generate icons in all Android densities automatically. On Android 8+ the launcher uses adaptive icons; the *ICON_BACKGROUND* variable sets the adaptive icon background color, and the existing raster icons remain the fallback for older Android versions. If the input is an SVG and *rsvg-convert* is available, it is used first for high-quality rasterization; otherwise the previous ImageMagick path is used.
 
 ### Android SDK location
 
