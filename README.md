@@ -128,12 +128,13 @@ Build a local WebView app with a packaged executable:
 
 ```bash
 ./build.sh \
-    --display-name "Demo" \
-    --project-name demo \
-    --package-name com.kaisarcode.demo \
+    --display-name "My App" \
+    --project-name myapp \
+    --package-name com.example.myapp \
     --webview-url ./web/index.html \
     --background '#101010' \
-    --exec ~/work/kccli/proj/demo.c/bin/aarch64/android/demo
+    --exec /path/to/aarch64/android/myexe \
+    --exec /path/to/armv7/android/myexe
 ```
 
 Build a debug APK plus a Play Store AAB:
@@ -157,8 +158,8 @@ The primary settings can also be supplied through environment variables:
 ```sh
 DISPLAY_NAME="My App"
 PROJECT_NAME="myapp"
-PACKAGE_NAME="com.kaisarcode.myapp"
-WEBVIEW_URL="https://google.com/"
+PACKAGE_NAME="com.example.myapp"
+WEBVIEW_URL="https://example.com/"
 ICON_SOURCE_FILE="./icon.svg"
 ICON_BACKGROUND="#1a1a1a"
 BACKGROUND=""
@@ -220,22 +221,84 @@ For local packaged content, `file:///android_asset/...` remains trusted automati
 
 Links outside the trusted list open in the external browser, and the JavaScript bridge is only available while the WebView is on a trusted URL.
 
-### Packaged executables
+### NativeBridge.exec
 
-`--exec` packages a native Android executable into the APK and exposes its basename through the `NativeBridge.exec` whitelist.
+`NativeBridge.exec` executes native Android command-line programs explicitly packaged with `--exec`.
+
+The JavaScript API receives an argv-style array. The first element is the logical executable name and the remaining elements are passed as arguments:
+
+```js
+NativeBridge.exec(["myexe", "--param", "hello"]);
+```
+
+Only executables explicitly supplied with `--exec` are available. JavaScript cannot execute arbitrary paths or commands outside that whitelist.
+
+The executable is exposed by its basename. For example:
 
 ```bash
 ./build.sh \
-    --exec ~/work/kccli/proj/demo.c/bin/aarch64/android/demo
+    --webview-url ./web/index.html \
+    --exec /path/to/aarch64/android/myexe
 ```
 
-JavaScript can then invoke it with:
+makes this available to trusted WebView content:
 
 ```js
-NativeBridge.exec(["demo", "Kaisar"]);
+NativeBridge.exec(["myexe", "--param", "hello"]);
 ```
 
-Only executables explicitly passed with `--exec` are exposed. Multiple executables can be included by repeating the option.
+`NativeBridge.exec` returns the process output as a string. Standard error is merged into standard output.
+
+### Multi-ABI executables
+
+The same logical executable can be supplied more than once when each file targets a different Android ABI:
+
+```bash
+./build.sh \
+    --webview-url ./web/index.html \
+    --exec /path/to/aarch64/android/myexe \
+    --exec /path/to/armv7/android/myexe
+```
+
+They are packaged as ABI-specific variants of the same logical command:
+
+```text
+lib/arm64-v8a/libexec_myexe.so
+lib/armeabi-v7a/libexec_myexe.so
+```
+
+The JavaScript call remains identical on every supported device:
+
+```js
+NativeBridge.exec(["myexe", "--param", "hello"]);
+```
+
+Android selects the native ABI variant for the device automatically.
+
+The current architecture mapping is:
+
+```text
+aarch64/android -> arm64-v8a
+armv7/android   -> armeabi-v7a
+```
+
+Passing the same executable basename more than once for the same ABI is rejected.
+
+Multiple different commands can also be exposed by repeating `--exec`:
+
+```bash
+./build.sh \
+    --webview-url ./web/index.html \
+    --exec /path/to/aarch64/android/tool-a \
+    --exec /path/to/aarch64/android/tool-b
+```
+
+Then each basename is available separately:
+
+```js
+NativeBridge.exec(["tool-a", "--version"]);
+NativeBridge.exec(["tool-b", "status"]);
+```
 
 ### Icon source
 
