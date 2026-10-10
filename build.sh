@@ -159,7 +159,7 @@ done
 
 if [ -n "$BACKGROUND" ]; then
     if ! printf '%s\n' "$BACKGROUND" | grep -Eq '^#[0-9A-Fa-f]{6}([0-9A-Fa-f]{2})?$'; then
-        echo "Error: --background must use #RRGGBB or #AARRGGBB." >&2
+        printf 'Error: --background must use \043RRGGBB or \043AARRGGBB.\n' >&2
         exit 1
     fi
 fi
@@ -426,10 +426,13 @@ build_aab () {
         cp -r "$NATIVE_LIBS_DIR/lib" "$FINAL_MODULE_DIR/"
     fi
 
-    MODULE_PARTS="manifest res dex resources.pb"
-    [ -d "$FINAL_MODULE_DIR/assets" ] && MODULE_PARTS="$MODULE_PARTS assets"
-    [ -d "$FINAL_MODULE_DIR/lib" ] && MODULE_PARTS="$MODULE_PARTS lib"
-    (cd "$FINAL_MODULE_DIR" && zip -r -q "$ABS_BASE_MODULE_ZIP" $MODULE_PARTS) || { echo "Error: ZIP tool failed to re-package module."; exit 1; }
+    (
+        cd "$FINAL_MODULE_DIR" || exit 1
+        set -- manifest res dex resources.pb
+        [ -d assets ] && set -- "$@" assets
+        [ -d lib ] && set -- "$@" lib
+        zip -r -q "$ABS_BASE_MODULE_ZIP" "$@"
+    ) || { echo "Error: ZIP tool failed to re-package module."; exit 1; }
 
     java -jar "$BUNDLETOOL_JAR" build-bundle \
         --modules="$BASE_MODULE_ZIP" \
