@@ -59,6 +59,7 @@ TEMP_CLASSES_DIR="$TEMP_ROOT_DIR/classes"
 FLAT_RES_DIR="$TEMP_ROOT_DIR/resources"
 TEMP_BUILD_DATA_DIR="$TEMP_ROOT_DIR/build_data"
 AAB_TEMP_DIR="$TEMP_ROOT_DIR/aab_work"
+NATIVE_LIBS_DIR="$TEMP_ROOT_DIR/native_libs"
 
 R_PACKAGE_DIR="$TEMP_CLASSES_DIR/$PACKAGE_SUBPATH"
 TEMP_JAR_FILE="$TEMP_BUILD_DATA_DIR/classes.jar"
@@ -108,16 +109,34 @@ SIGNING_REQUIRED="false"
 
 CLEAN_ALL=false
 RELEASE_MODE=false
+EXECUTABLES=""
 
-for arg in "$@"; do
-    case $arg in
+while [ "$#" -gt 0 ]; do
+    case "$1" in
         --clean)
             CLEAN_ALL=true
             echo "Argument --clean detected. Forcing KeyStore and temporary files deletion."
+            shift
             ;;
         --release)
             RELEASE_MODE=true
             echo "Argument --release detected. Preparing for DUAL AAB/APK build."
+            shift
+            ;;
+        --exec)
+            shift
+            [ "$#" -gt 0 ] || { echo "Error: --exec requires a path." >&2; exit 1; }
+            if [ -n "$EXECUTABLES" ]; then
+                EXECUTABLES="$EXECUTABLES
+$1"
+            else
+                EXECUTABLES="$1"
+            fi
+            shift
+            ;;
+        *)
+            echo "Error: Unknown argument: $1" >&2
+            exit 1
             ;;
     esac
 done
@@ -218,6 +237,71 @@ extract_origin () {
     esac
 }
 
+# Detects the Android ABI of an ELF executable.
+# @param $1 Executable path.
+# @return Prints the Android ABI name or fails.
+detect_exec_abi () {
+    EXEC_FILE_INFO=$(file -b "$1" 2>/dev/null) || return 1
+
+    case "$EXEC_FILE_INFO" in
+        *aarch64*|*AArch64*) printf '%s\n' arm64-v8a ;;
+        *ARM*) printf '%s\n' armeabi-v7a ;;
+        *x86-64*|*x86_64*) printf '%s\n' x86_64 ;;
+        *80386*) printf '%s\n' x86 ;;
+        *) return 1 ;;
+    esac
+}
+
+# Packages executables requested with --exec and generates Java lookup cases.
+# @return None.
+prepare_executables () {
+    JAVA_EXECUTABLE_CASES=""
+    EXECUTABLE_NAMES=""
+
+    [ -n "$EXECUTABLES" ] || return
+    command -v file >/dev/null 2>&1 || { echo "Error: 'file' is required when using --exec." >&2; exit 1; }
+
+    while IFS= read -r EXEC_PATH; do
+        [ -n "$EXEC_PATH" ] || continue
+        [ -f "$EXEC_PATH" ] || { echo "Error: Executable not found: $EXEC_PATH" >&2; exit 1; }
+
+        EXEC_NAME=$(basename "$EXEC_PATH")
+        case "$EXEC_NAME" in
+            ''|*[!A-Za-z0-9._-]*)
+                echo "Error: Invalid executable name: $EXEC_NAME" >&2
+                exit 1
+                ;;
+        esac
+
+        case " $EXECUTABLE_NAMES " in
+            *" $EXEC_NAME "*)
+                echo "Error: Duplicate executable name: $EXEC_NAME" >&2
+                exit 1
+                ;;
+        esac
+        EXECUTABLE_NAMES="$EXECUTABLE_NAMES $EXEC_NAME"
+
+        EXEC_ABI=$(detect_exec_abi "$EXEC_PATH") || {
+            echo "Error: Unsupported executable architecture: $EXEC_PATH" >&2
+            exit 1
+        }
+
+        EXEC_PACKAGE_NAME=$(printf '%s' "$EXEC_NAME" | tr '.-' '__')
+        EXEC_PACKAGE_FILE="libexec_${EXEC_PACKAGE_NAME}.so"
+        EXEC_PACKAGE_DIR="$NATIVE_LIBS_DIR/lib/$EXEC_ABI"
+        mkdir -p "$EXEC_PACKAGE_DIR"
+        cp "$EXEC_PATH" "$EXEC_PACKAGE_DIR/$EXEC_PACKAGE_FILE" || exit 1
+
+        JAVA_EXECUTABLE_CASES="$JAVA_EXECUTABLE_CASES
+            case \"$EXEC_NAME\":
+                return new File(context.getApplicationInfo().nativeLibraryDir, \"$EXEC_PACKAGE_FILE\").getAbsolutePath();"
+
+        echo "Including executable: $EXEC_NAME ($EXEC_ABI)"
+    done <<EOF
+$EXECUTABLES
+EOF
+}
+
 # Builds the Android App Bundle.
 # @return None.
 build_aab () {
@@ -259,11 +343,14 @@ build_aab () {
     mkdir -p "$FINAL_MODULE_DIR/dex"
     cp "$DEX_FILE" "$FINAL_MODULE_DIR/dex/classes.dex"
 
-    if [ -d "$FINAL_MODULE_DIR/assets" ]; then
-        (cd "$FINAL_MODULE_DIR" && zip -r -q "$ABS_BASE_MODULE_ZIP" manifest res dex resources.pb assets) || { echo "Error: ZIP tool failed to re-package module."; exit 1; }
-    else
-        (cd "$FINAL_MODULE_DIR" && zip -r -q "$ABS_BASE_MODULE_ZIP" manifest res dex resources.pb) || { echo "Error: ZIP tool failed to re-package module."; exit 1; }
+    if [ -d "$NATIVE_LIBS_DIR/lib" ]; then
+        cp -r "$NATIVE_LIBS_DIR/lib" "$FINAL_MODULE_DIR/"
     fi
+
+    MODULE_PARTS="manifest res dex resources.pb"
+    [ -d "$FINAL_MODULE_DIR/assets" ] && MODULE_PARTS="$MODULE_PARTS assets"
+    [ -d "$FINAL_MODULE_DIR/lib" ] && MODULE_PARTS="$MODULE_PARTS lib"
+    (cd "$FINAL_MODULE_DIR" && zip -r -q "$ABS_BASE_MODULE_ZIP" $MODULE_PARTS) || { echo "Error: ZIP tool failed to re-package module."; exit 1; }
 
     java -jar "$BUNDLETOOL_JAR" build-bundle \
         --modules="$BASE_MODULE_ZIP" \
@@ -294,6 +381,14 @@ build_aab () {
 # @return None.
 build_apk () {
     zip -j "$UNSIGNED_APK_TEMP" "$DEX_FILE" || { echo "Error: ZIP tool failed to insert classes.dex." ; exit 1; }
+
+    if [ -d "$NATIVE_LIBS_DIR/lib" ]; then
+        case "$UNSIGNED_APK_TEMP" in
+            /*) ABS_UNSIGNED_APK_TEMP="$UNSIGNED_APK_TEMP" ;;
+            *) ABS_UNSIGNED_APK_TEMP="$(pwd)/$UNSIGNED_APK_TEMP" ;;
+        esac
+        (cd "$NATIVE_LIBS_DIR" && zip -r -q "$ABS_UNSIGNED_APK_TEMP" lib) || { echo "Error: Failed to package executables."; exit 1; }
+    fi
 
     echo "Generating debug KeyStore if it does not exist..."
     if [ ! -f "$DEBUG_KEYSTORE" ]; then
@@ -326,7 +421,8 @@ mkdir -p "$SRC_DIR" "$LAYOUT_DIR" "$VALUES_DIR" "$OUTPUT_DIR" "$ASSETS_DIR" \
     "$MIPMAP_MDPI_DIR" "$MIPMAP_HDPI_DIR" "$MIPMAP_XHDPI_DIR" \
     "$MIPMAP_XXHDPI_DIR" "$MIPMAP_XXXHDPI_DIR" "$MIPMAP_ANYDPI_V26_DIR"
 rm -rf "$TEMP_ROOT_DIR"
-mkdir -p "$TEMP_CLASSES_DIR" "$FLAT_RES_DIR" "$R_PACKAGE_DIR" "$TEMP_BUILD_DATA_DIR" "$AAB_TEMP_DIR"
+mkdir -p "$TEMP_CLASSES_DIR" "$FLAT_RES_DIR" "$R_PACKAGE_DIR" "$TEMP_BUILD_DATA_DIR" "$AAB_TEMP_DIR" "$NATIVE_LIBS_DIR"
+prepare_executables
 
 DENSITY_PAIRS="mdpi:48x48 hdpi:72x72 xhdpi:96x96 xxhdpi:144x144 xxxhdpi:192x192"
 FOREGROUND_DENSITY_PAIRS="mdpi:108x108 hdpi:162x162 xhdpi:216x216 xxhdpi:324x324 xxxhdpi:432x432"
@@ -462,6 +558,7 @@ cat << EOF > "$MANIFEST_FILE"
     <uses-permission android:name="android.permission.INTERNET" />
     <application
         android:allowBackup="true"
+        android:extractNativeLibs="true"
         android:icon="@mipmap/ic_launcher"
         android:roundIcon="@mipmap/ic_launcher"
         android:label="@string/app_name"
@@ -545,6 +642,9 @@ import android.webkit.WebView;
 import android.widget.Toast;
 import android.net.ConnectivityManager;
 import android.net.NetworkInfo;
+import java.io.BufferedReader;
+import java.io.File;
+import java.io.InputStreamReader;
 import java.net.URI;
 
 public class JSBridge {
@@ -620,6 +720,55 @@ public class JSBridge {
 
     private boolean canUseBridge() {
         return isTrustedUrl(webView.getUrl(), trustedOrigins);
+    }
+
+    private String executablePath(String name) {
+        switch (name) {$JAVA_EXECUTABLE_CASES
+            default:
+                return null;
+        }
+    }
+
+    @JavascriptInterface
+    public String exec(String[] args) {
+        if (!canUseBridge()) {
+            return "";
+        }
+        if (args == null || args.length == 0 || args[0] == null) {
+            return "exec: missing executable";
+        }
+
+        String executable = executablePath(args[0]);
+        if (executable == null) {
+            return "exec: executable not exposed: " + args[0];
+        }
+
+        String[] command = args.clone();
+        command[0] = executable;
+
+        try {
+            ProcessBuilder builder = new ProcessBuilder(command);
+            builder.redirectErrorStream(true);
+            Process process = builder.start();
+            BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream()));
+            StringBuilder output = new StringBuilder();
+            String line;
+
+            while ((line = reader.readLine()) != null) {
+                if (output.length() > 0) {
+                    output.append('\n');
+                }
+                output.append(line);
+            }
+
+            int code = process.waitFor();
+            if (code != 0 && output.length() == 0) {
+                return "exec: process exited with code " + code;
+            }
+            return output.toString();
+        } catch (Exception error) {
+            return "exec: " + error.getMessage();
+        }
     }
 
     @JavascriptInterface
@@ -728,7 +877,9 @@ $FULLSCREEN_SETUP
         webView.setVerticalScrollBarEnabled(false);
         webView.setWebViewClient(new TrustedWebViewClient(this, TRUSTED_ORIGINS));
 
-        webView.addJavascriptInterface(new JSBridge(this, webView, TRUSTED_ORIGINS), JS_INTERFACE_NAME);
+        JSBridge bridge = new JSBridge(this, webView, TRUSTED_ORIGINS);
+        webView.addJavascriptInterface(bridge, JS_INTERFACE_NAME);
+        webView.addJavascriptInterface(bridge, "NativeBridge");
         webView.loadUrl(WEBVIEW_URL);
     }
 
