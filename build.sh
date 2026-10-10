@@ -746,7 +746,6 @@ package $PACKAGE_NAME;
 
 import android.content.Context;
 import android.webkit.JavascriptInterface;
-import android.webkit.WebView;
 import android.widget.Toast;
 import android.net.ConnectivityManager;
 import android.net.NetworkInfo;
@@ -759,12 +758,11 @@ import org.json.JSONArray;
 public class JSBridge {
     private static final String LOCAL_ASSET_PREFIX = "file:///android_asset/";
     private final Context context;
-    private final WebView webView;
     private final String[] trustedOrigins;
+    private volatile boolean bridgeAllowed;
 
-    public JSBridge(Context context, WebView webView, String[] trustedOrigins) {
+    public JSBridge(Context context, String[] trustedOrigins) {
         this.context = context;
-        this.webView = webView;
         this.trustedOrigins = trustedOrigins;
     }
 
@@ -827,8 +825,12 @@ public class JSBridge {
         return scheme + "://" + host + ":" + port;
     }
 
+    public void setCurrentUrl(String url) {
+        bridgeAllowed = isTrustedUrl(url, trustedOrigins);
+    }
+
     private boolean canUseBridge() {
-        return isTrustedUrl(webView.getUrl(), trustedOrigins);
+        return bridgeAllowed;
     }
 
     private String executablePath(String name) {
@@ -927,12 +929,18 @@ import android.webkit.WebView;
 import android.webkit.WebViewClient;
 
 public class TrustedWebViewClient extends WebViewClient {
+    private static final String NATIVE_BRIDGE_SCRIPT =
+        "window.NativeBridge={exec:function(args){return window.AndroidBridge.exec(JSON.stringify(args));},"
+        + "showToast:function(message){return window.AndroidBridge.showToast(message);},"
+        + "isOnline:function(){return window.AndroidBridge.isOnline();}};";
     private final Context context;
     private final String[] trustedOrigins;
+    private final JSBridge bridge;
 
-    public TrustedWebViewClient(Context context, String[] trustedOrigins) {
+    public TrustedWebViewClient(Context context, String[] trustedOrigins, JSBridge bridge) {
         this.context = context;
         this.trustedOrigins = trustedOrigins;
+        this.bridge = bridge;
     }
 
     private boolean openExternally(String url) {
@@ -952,6 +960,12 @@ public class TrustedWebViewClient extends WebViewClient {
         return openExternally(url);
     }
 
+    private void installBridge(WebView view, String url) {
+        if (JSBridge.isTrustedUrl(url, trustedOrigins)) {
+            view.evaluateJavascript(NATIVE_BRIDGE_SCRIPT, null);
+        }
+    }
+
     @Override
     public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest request) {
         if (!request.isForMainFrame()) {
@@ -959,6 +973,19 @@ public class TrustedWebViewClient extends WebViewClient {
         }
 
         return handleNavigation(request.getUrl().toString());
+    }
+
+    @Override
+    public void onPageStarted(WebView view, String url, android.graphics.Bitmap favicon) {
+        bridge.setCurrentUrl(url);
+        installBridge(view, url);
+        super.onPageStarted(view, url, favicon);
+    }
+
+    @Override
+    public void onPageFinished(WebView view, String url) {
+        installBridge(view, url);
+        super.onPageFinished(view, url);
     }
 }
 EOF
@@ -996,11 +1023,10 @@ $BACKGROUND_SETUP
         webView.getSettings().setUseWideViewPort(true);
         webView.getSettings().setLoadWithOverviewMode(true);
         webView.setVerticalScrollBarEnabled(false);
-        webView.setWebViewClient(new TrustedWebViewClient(this, TRUSTED_ORIGINS));
-
-        JSBridge bridge = new JSBridge(this, webView, TRUSTED_ORIGINS);
+        JSBridge bridge = new JSBridge(this, TRUSTED_ORIGINS);
+        bridge.setCurrentUrl(WEBVIEW_URL);
+        webView.setWebViewClient(new TrustedWebViewClient(this, TRUSTED_ORIGINS, bridge));
         webView.addJavascriptInterface(bridge, JS_INTERFACE_NAME);
-        webView.addJavascriptInterface(bridge, "NativeBridge");
         webView.loadUrl(WEBVIEW_URL);
     }
 
