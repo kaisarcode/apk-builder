@@ -1,11 +1,11 @@
-# APK-BUILDER
+# KCAPK
 Android WebView App Builder
 
 ---
 
 ## Description
 
-APK-BUILDER is a lightweight POSIX shell script that builds Android apps - mainly WebView-based - directly from the command line.
+KCAPK is a lightweight POSIX shell script that builds Android apps - mainly WebView-based - directly from the command line.
 It automates every step: generates a full Android project, compiles, signs, and outputs an APK, with optional AAB generation for Play Store distribution.
 No Android Studio, no Gradle - just the Android SDK and a shell.
 
@@ -32,8 +32,8 @@ Make sure your system includes:
 Clone the repository and make the script executable:
 
 ```bash
-git clone https://github.com/kaisarcode/apk-builder.git
-cd apk-builder
+git clone https://github.com/kaisarcode/kcapk.git
+cd kcapk
 chmod +x build.sh
 ```
 
@@ -215,7 +215,7 @@ For remote content, `--trusted-origin` can be repeated:
 
 `TRUSTED_ORIGINS` remains available as a whitespace-separated environment fallback.
 
-If no explicit trusted origin is supplied and `WEBVIEW_URL` is remote, APK-BUILDER automatically trusts the origin of `WEBVIEW_URL`.
+If no explicit trusted origin is supplied and `WEBVIEW_URL` is remote, KCAPK automatically trusts the origin of `WEBVIEW_URL`.
 
 For local packaged content, `file:///android_asset/...` remains trusted automatically.
 
@@ -310,7 +310,7 @@ ImageMagick (**convert**) is used to generate icons in all Android densities aut
 
 ### Android SDK location
 
-If you already have the SDK installed, set either `ANDROID_SDK_ROOT` or `ANDROID_HOME` before running the script and your existing installation will be reused. When neither variable is present, APK-BUILDER falls back to `~/android-sdk` and downloads the command-line tools there. To override the download location manually, set `CMDLINE_TOOLS_URL` and optionally `SDK_ZIP` before invoking the script.
+If you already have the SDK installed, set either `ANDROID_SDK_ROOT` or `ANDROID_HOME` before running the script and your existing installation will be reused. When neither variable is present, KCAPK falls back to `~/android-sdk` and downloads the command-line tools there. To override the download location manually, set `CMDLINE_TOOLS_URL` and optionally `SDK_ZIP` before invoking the script.
 
 ### Environment-variable examples
 
