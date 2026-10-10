@@ -11,11 +11,12 @@ PACKAGE_NAME="${PACKAGE_NAME:-com.kaisarcode.myapp}"
 WEBVIEW_URL="${WEBVIEW_URL:-https://google.com/}"
 ICON_SOURCE_FILE="${ICON_SOURCE_FILE:-./icon.svg}"
 ICON_BACKGROUND="${ICON_BACKGROUND:-#1a1a1a}"
+BACKGROUND="${BACKGROUND:-}"
 TRUSTED_ORIGINS="${TRUSTED_ORIGINS:-
 }"
-IS_FULLSCREEN="false"
-VERSION_CODE=1
-VERSION_NAME="1.0"
+IS_FULLSCREEN="${IS_FULLSCREEN:-false}"
+VERSION_CODE="${VERSION_CODE:-1}"
+VERSION_NAME="${VERSION_NAME:-1.0}"
 TARGET_SDK="34"
 MIN_SDK="24"
 
@@ -37,6 +38,129 @@ if [ -z "$CMDLINE_TOOLS_URL" ]; then
 fi
 
 SDK_ZIP="${SDK_ZIP:-${DEFAULT_CMDLINE_PREFIX}.zip}"
+
+if [ -n "$ANDROID_SDK_ROOT" ]; then
+    SDK_BASE="$ANDROID_SDK_ROOT"
+elif [ -n "$ANDROID_HOME" ]; then
+    SDK_BASE="$ANDROID_HOME"
+else
+    SDK_BASE="$HOME/android-sdk"
+fi
+
+ANDROID_SDK_ROOT="$SDK_BASE"
+if [ -z "$ANDROID_HOME" ]; then
+    ANDROID_HOME="$ANDROID_SDK_ROOT"
+fi
+
+CLEAN_ALL=false
+RELEASE_MODE=false
+EXECUTABLES=""
+
+while [ "$#" -gt 0 ]; do
+    case "$1" in
+        --display-name)
+            shift
+            [ "$#" -gt 0 ] || { echo "Error: --display-name requires a value." >&2; exit 1; }
+            DISPLAY_NAME="$1"
+            shift
+            ;;
+        --project-name)
+            shift
+            [ "$#" -gt 0 ] || { echo "Error: --project-name requires a value." >&2; exit 1; }
+            PROJECT_NAME="$1"
+            shift
+            ;;
+        --package-name)
+            shift
+            [ "$#" -gt 0 ] || { echo "Error: --package-name requires a value." >&2; exit 1; }
+            PACKAGE_NAME="$1"
+            shift
+            ;;
+        --webview-url)
+            shift
+            [ "$#" -gt 0 ] || { echo "Error: --webview-url requires a value." >&2; exit 1; }
+            WEBVIEW_URL="$1"
+            shift
+            ;;
+        --icon)
+            shift
+            [ "$#" -gt 0 ] || { echo "Error: --icon requires a path or URL." >&2; exit 1; }
+            ICON_SOURCE_FILE="$1"
+            shift
+            ;;
+        --icon-background)
+            shift
+            [ "$#" -gt 0 ] || { echo "Error: --icon-background requires a color." >&2; exit 1; }
+            ICON_BACKGROUND="$1"
+            shift
+            ;;
+        --background)
+            shift
+            [ "$#" -gt 0 ] || { echo "Error: --background requires a color." >&2; exit 1; }
+            BACKGROUND="$1"
+            shift
+            ;;
+        --trusted-origin)
+            shift
+            [ "$#" -gt 0 ] || { echo "Error: --trusted-origin requires an origin." >&2; exit 1; }
+            if [ -n "$TRUSTED_ORIGINS" ]; then
+                TRUSTED_ORIGINS="$TRUSTED_ORIGINS
+$1"
+            else
+                TRUSTED_ORIGINS="$1"
+            fi
+            shift
+            ;;
+        --fullscreen)
+            IS_FULLSCREEN=true
+            shift
+            ;;
+        --version-code)
+            shift
+            [ "$#" -gt 0 ] || { echo "Error: --version-code requires a value." >&2; exit 1; }
+            VERSION_CODE="$1"
+            shift
+            ;;
+        --version-name)
+            shift
+            [ "$#" -gt 0 ] || { echo "Error: --version-name requires a value." >&2; exit 1; }
+            VERSION_NAME="$1"
+            shift
+            ;;
+        --clean)
+            CLEAN_ALL=true
+            echo "Argument --clean detected. Forcing KeyStore and temporary files deletion."
+            shift
+            ;;
+        --release)
+            RELEASE_MODE=true
+            echo "Argument --release detected. Preparing for DUAL AAB/APK build."
+            shift
+            ;;
+        --exec)
+            shift
+            [ "$#" -gt 0 ] || { echo "Error: --exec requires a path." >&2; exit 1; }
+            if [ -n "$EXECUTABLES" ]; then
+                EXECUTABLES="$EXECUTABLES
+$1"
+            else
+                EXECUTABLES="$1"
+            fi
+            shift
+            ;;
+        *)
+            echo "Error: Unknown argument: $1" >&2
+            exit 1
+            ;;
+    esac
+done
+
+if [ -n "$BACKGROUND" ]; then
+    if ! printf '%s\n' "$BACKGROUND" | grep -Eq '^#[0-9A-Fa-f]{6}([0-9A-Fa-f]{2})?$'; then
+        echo "Error: --background must use #RRGGBB or #AARRGGBB." >&2
+        exit 1
+    fi
+fi
 
 BASE_DIR="./$PROJECT_NAME"
 PACKAGE_SUBPATH="$(echo "$PACKAGE_NAME" | tr . /)"
@@ -64,19 +188,6 @@ NATIVE_LIBS_DIR="$TEMP_ROOT_DIR/native_libs"
 R_PACKAGE_DIR="$TEMP_CLASSES_DIR/$PACKAGE_SUBPATH"
 TEMP_JAR_FILE="$TEMP_BUILD_DATA_DIR/classes.jar"
 DEX_FILE="$TEMP_BUILD_DATA_DIR/classes.dex"
-
-if [ -n "$ANDROID_SDK_ROOT" ]; then
-    SDK_BASE="$ANDROID_SDK_ROOT"
-elif [ -n "$ANDROID_HOME" ]; then
-    SDK_BASE="$ANDROID_HOME"
-else
-    SDK_BASE="$HOME/android-sdk"
-fi
-
-ANDROID_SDK_ROOT="$SDK_BASE"
-if [ -z "$ANDROID_HOME" ]; then
-    ANDROID_HOME="$ANDROID_SDK_ROOT"
-fi
 
 CMDLINE_TOOLS_DIR="$ANDROID_SDK_ROOT/cmdline-tools/latest"
 BUILD_TOOLS_DIR="$ANDROID_SDK_ROOT/build-tools/$BUILD_TOOLS_VERSION"
@@ -106,40 +217,6 @@ AAB_SIGNED_FILE="$OUTPUT_DIR/$PROJECT_NAME.aab"
 BASE_MODULE_ZIP="$AAB_TEMP_DIR/base.zip"
 FINAL_MODULE_DIR="$AAB_TEMP_DIR/final_module"
 SIGNING_REQUIRED="false"
-
-CLEAN_ALL=false
-RELEASE_MODE=false
-EXECUTABLES=""
-
-while [ "$#" -gt 0 ]; do
-    case "$1" in
-        --clean)
-            CLEAN_ALL=true
-            echo "Argument --clean detected. Forcing KeyStore and temporary files deletion."
-            shift
-            ;;
-        --release)
-            RELEASE_MODE=true
-            echo "Argument --release detected. Preparing for DUAL AAB/APK build."
-            shift
-            ;;
-        --exec)
-            shift
-            [ "$#" -gt 0 ] || { echo "Error: --exec requires a path." >&2; exit 1; }
-            if [ -n "$EXECUTABLES" ]; then
-                EXECUTABLES="$EXECUTABLES
-$1"
-            else
-                EXECUTABLES="$1"
-            fi
-            shift
-            ;;
-        *)
-            echo "Error: Unknown argument: $1" >&2
-            exit 1
-            ;;
-    esac
-done
 
 if $CLEAN_ALL; then
     if [ -f "$DEBUG_KEYSTORE" ]; then
@@ -549,6 +626,32 @@ for ORIGIN in $RESOLVED_TRUSTED_ORIGINS; do
     JAVA_TRUSTED_ORIGINS="$JAVA_TRUSTED_ORIGINS\"$ORIGIN\""
 done
 
+APP_THEME="@android:style/Theme.DeviceDefault.NoActionBar"
+BACKGROUND_SETUP=""
+if [ -n "$BACKGROUND" ]; then
+    cat << EOF > "$VALUES_DIR/app_colors.xml"
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="app_background">$BACKGROUND</color>
+</resources>
+EOF
+
+    cat << EOF > "$VALUES_DIR/styles.xml"
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <style name="AppTheme" parent="android:style/Theme.DeviceDefault.NoActionBar">
+        <item name="android:windowBackground">@color/app_background</item>
+    </style>
+</resources>
+EOF
+
+    APP_THEME="@style/AppTheme"
+    BACKGROUND_SETUP="
+        webView.setBackgroundColor(android.graphics.Color.parseColor(\"$BACKGROUND\"));"
+else
+    rm -f "$VALUES_DIR/app_colors.xml" "$VALUES_DIR/styles.xml"
+fi
+
 cat << EOF > "$MANIFEST_FILE"
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
@@ -564,7 +667,7 @@ cat << EOF > "$MANIFEST_FILE"
         android:label="@string/app_name"
         android:supportsRtl="true"
         android:resizeableActivity="true"
-        android:theme="@android:style/Theme.DeviceDefault.NoActionBar">
+        android:theme="$APP_THEME">
         <meta-data android:name="android.max_aspect" android:value="2.4" />
 EOF
 
@@ -869,6 +972,7 @@ $FULLSCREEN_SETUP
 
         int webViewResId = res.getIdentifier("webview", "id", getPackageName());
         webView = (WebView) findViewById(webViewResId);
+$BACKGROUND_SETUP
 
         webView.getSettings().setJavaScriptEnabled(true);
         webView.getSettings().setDomStorageEnabled(true);
