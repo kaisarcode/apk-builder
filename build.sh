@@ -55,6 +55,7 @@ fi
 CLEAN_ALL=false
 RELEASE_MODE=false
 EXECUTABLES=""
+CLI_TRUSTED_ORIGINS_SET=false
 
 while [ "$#" -gt 0 ]; do
     case "$1" in
@@ -103,6 +104,10 @@ while [ "$#" -gt 0 ]; do
         --trusted-origin)
             shift
             [ "$#" -gt 0 ] || { echo "Error: --trusted-origin requires an origin." >&2; exit 1; }
+            if ! $CLI_TRUSTED_ORIGINS_SET; then
+                TRUSTED_ORIGINS=""
+                CLI_TRUSTED_ORIGINS_SET=true
+            fi
             if [ -n "$TRUSTED_ORIGINS" ]; then
                 TRUSTED_ORIGINS="$TRUSTED_ORIGINS
 $1"
@@ -639,7 +644,7 @@ EOF
     cat << EOF > "$VALUES_DIR/styles.xml"
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <style name="AppTheme" parent="android:style/Theme.DeviceDefault.NoActionBar">
+    <style name="AppTheme" parent="@android:style/Theme.DeviceDefault.NoActionBar">
         <item name="android:windowBackground">@color/app_background</item>
     </style>
 </resources>
