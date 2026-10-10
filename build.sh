@@ -754,6 +754,7 @@ import java.io.BufferedReader;
 import java.io.File;
 import java.io.InputStreamReader;
 import java.net.URI;
+import org.json.JSONArray;
 
 public class JSBridge {
     private static final String LOCAL_ASSET_PREFIX = "file:///android_asset/";
@@ -838,23 +839,34 @@ public class JSBridge {
     }
 
     @JavascriptInterface
-    public String exec(String[] args) {
+    public String exec(String json) {
         if (!canUseBridge()) {
             return "";
         }
-        if (args == null || args.length == 0 || args[0] == null) {
-            return "exec: missing executable";
+        if (json == null || json.isEmpty()) {
+            return "exec: missing arguments";
         }
-
-        String executable = executablePath(args[0]);
-        if (executable == null) {
-            return "exec: executable not exposed: " + args[0];
-        }
-
-        String[] command = args.clone();
-        command[0] = executable;
 
         try {
+            JSONArray values = new JSONArray(json);
+            if (values.length() == 0 || values.isNull(0)) {
+                return "exec: missing executable";
+            }
+
+            String[] command = new String[values.length()];
+            for (int i = 0; i < values.length(); i++) {
+                if (values.isNull(i)) {
+                    return "exec: invalid argument";
+                }
+                command[i] = values.getString(i);
+            }
+
+            String executable = executablePath(command[0]);
+            if (executable == null) {
+                return "exec: executable not exposed: " + command[0];
+            }
+            command[0] = executable;
+
             ProcessBuilder builder = new ProcessBuilder(command);
             builder.redirectErrorStream(true);
             Process process = builder.start();
