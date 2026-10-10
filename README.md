@@ -95,25 +95,45 @@ Run directly:
 
 By default, it builds a debug APK in *./<project-name>/bin/*.
 
-### Command-line Flags
+### Command-line options
 
-| Flag | Description |
+| Option | Description |
 |------|--------------|
-| *--clean* | Deletes the existing debug keystore before building. |
-| *--release* | Builds a debug APK plus an AAB for Play Store distribution. |
+| `--display-name <name>` | Application display name. |
+| `--project-name <name>` | Local generated project/output directory name. |
+| `--package-name <name>` | Android package name. |
+| `--webview-url <url|file>` | Remote URL or local HTML entry file. |
+| `--icon <path|url>` | Local or remote icon source. |
+| `--icon-background <color>` | Adaptive icon background color. |
+| `--background <color>` | Activity/WebView startup background using `#RRGGBB` or `#AARRGGBB`. |
+| `--trusted-origin <origin>` | Trusted bridge origin; repeatable. |
+| `--fullscreen` | Enables fullscreen mode. |
+| `--version-code <N>` | Android version code. |
+| `--version-name <name>` | Android version name. |
+| `--exec <path>` | Packages one native executable and exposes it to `NativeBridge.exec`; repeatable. |
+| `--clean` | Deletes the existing debug keystore before building. |
+| `--release` | Builds a debug APK plus an AAB for Play Store distribution. |
+
+Command-line options override the equivalent environment variables. Environment variables remain supported as fallbacks.
 
 ### Examples
 
-Build a debug APK (default):
+Build a debug APK:
 
 ```bash
 ./build.sh
 ```
 
-Clean everything and rebuild:
+Build a local WebView app with a packaged executable:
 
 ```bash
-./build.sh --clean
+./build.sh \
+    --display-name "Demo" \
+    --project-name demo \
+    --package-name com.kaisarcode.demo \
+    --webview-url ./web/index.html \
+    --background '#101010' \
+    --exec ~/work/kccli/proj/demo.c/bin/aarch64/android/demo
 ```
 
 Build a debug APK plus a Play Store AAB:
@@ -122,7 +142,7 @@ Build a debug APK plus a Play Store AAB:
 ./build.sh --release
 ```
 
-Combine both:
+Combine clean and release:
 
 ```bash
 ./build.sh --clean --release
@@ -132,7 +152,7 @@ Combine both:
 
 ## Configuration
 
-At the top of the script you'll find the main settings:
+The primary settings can also be supplied through environment variables:
 
 ```sh
 DISPLAY_NAME="My App"
@@ -141,68 +161,104 @@ PACKAGE_NAME="com.kaisarcode.myapp"
 WEBVIEW_URL="https://google.com/"
 ICON_SOURCE_FILE="./icon.svg"
 ICON_BACKGROUND="#1a1a1a"
+BACKGROUND=""
 TRUSTED_ORIGINS=""
 IS_FULLSCREEN="false"
 VERSION_CODE=1
 VERSION_NAME="1.0"
-TARGET_SDK="34"
-MIN_SDK="24"
+```
+
+The precedence is:
+
+```text
+command-line option > environment variable > built-in default
 ```
 
 ### WebView source
 
-The *WEBVIEW_URL* variable can point to:
-- A remote web page, such as *https://example.com*
-- A local HTML file, such as *~/myproject/index.html*
+`--webview-url` / `WEBVIEW_URL` can point to:
+- A remote web page, such as `https://example.com`
+- A local HTML file, such as `~/myproject/index.html`
 
-If a local file is detected, the script automatically copies the directory to the app's assets/ folder and adjusts the WebView path accordingly.
+If a local file is detected, the script automatically copies its entire containing directory into the app's `assets/` directory and changes the startup URL to the corresponding `file:///android_asset/...` URL. CSS, JavaScript, images, subdirectories, and other adjacent web assets are therefore packaged together.
+
+### Background
+
+`--background` sets both the Activity window background shown while the WebView starts and the WebView background itself.
+
+Accepted forms are:
+
+```text
+#RRGGBB
+#AARRGGBB
+```
+
+For example:
+
+```bash
+./build.sh --background '#101010'
+```
+
+An alpha value can be supplied with `#AARRGGBB`. This controls the Activity/WebView background color; it does not enable a special translucent-Activity mode.
 
 ### Trusted origins for JS bridge
 
-If you use the JavaScript bridge with remote content, you can restrict it to trusted origins with `TRUSTED_ORIGINS`.
+For remote content, `--trusted-origin` can be repeated:
 
-If `TRUSTED_ORIGINS` is empty and `WEBVIEW_URL` is remote, APK-BUILDER automatically trusts the origin of `WEBVIEW_URL`.
-
-The value is whitespace-separated, so you can write it on one line or one origin per line:
-
-```sh
-TRUSTED_ORIGINS="https://app.example.com https://cdn.example.com"
+```bash
+./build.sh \
+    --webview-url https://app.example.com \
+    --trusted-origin https://app.example.com \
+    --trusted-origin https://cdn.example.com
 ```
 
-```sh
-TRUSTED_ORIGINS="
-https://app.example.com
-https://cdn.example.com
-"
-```
+`TRUSTED_ORIGINS` remains available as a whitespace-separated environment fallback.
+
+If no explicit trusted origin is supplied and `WEBVIEW_URL` is remote, APK-BUILDER automatically trusts the origin of `WEBVIEW_URL`.
 
 For local packaged content, `file:///android_asset/...` remains trusted automatically.
 
 Links outside the trusted list open in the external browser, and the JavaScript bridge is only available while the WebView is on a trusted URL.
 
+### Packaged executables
+
+`--exec` packages a native Android executable into the APK and exposes its basename through the `NativeBridge.exec` whitelist.
+
+```bash
+./build.sh \
+    --exec ~/work/kccli/proj/demo.c/bin/aarch64/android/demo
+```
+
+JavaScript can then invoke it with:
+
+```js
+NativeBridge.exec(["demo", "Kaisar"]);
+```
+
+Only executables explicitly passed with `--exec` are exposed. Multiple executables can be included by repeating the option.
+
 ### Icon source
 
-The *ICON_SOURCE_FILE* variable accepts:
+`--icon` / `ICON_SOURCE_FILE` accepts:
 - A local image file (SVG, PNG, etc.)
-- An external URL (e.g. *https://example.com/icon.png*) - downloaded automatically with *curl* or *wget*
+- An external URL such as `https://example.com/icon.png`
 
-ImageMagick (**convert**) is used to generate icons in all Android densities automatically. On Android 8+ the launcher uses adaptive icons; the *ICON_BACKGROUND* variable sets the adaptive icon background color, and the existing raster icons remain the fallback for older Android versions. If the input is an SVG and *rsvg-convert* is available, it is used first for high-quality rasterization; otherwise the previous ImageMagick path is used.
+ImageMagick (**convert**) is used to generate icons in all Android densities automatically. On Android 8+ the launcher uses adaptive icons; `--icon-background` / `ICON_BACKGROUND` sets the adaptive icon background color, while raster icons remain the fallback for older Android versions. If the input is an SVG and *rsvg-convert* is available, it is used first for high-quality rasterization.
 
 ### Android SDK location
 
-If you already have the SDK installed, set either `ANDROID_SDK_ROOT` or `ANDROID_HOME` before running the script and your existing installation will be reused. When neither variable is present, APK-BUILDER falls back to `~/android-sdk` and downloads the command-line tools there. To override the download location manually, set `CMDLINE_TOOLS_URL` (and optionally `SDK_ZIP`) before invoking the script.
+If you already have the SDK installed, set either `ANDROID_SDK_ROOT` or `ANDROID_HOME` before running the script and your existing installation will be reused. When neither variable is present, APK-BUILDER falls back to `~/android-sdk` and downloads the command-line tools there. To override the download location manually, set `CMDLINE_TOOLS_URL` and optionally `SDK_ZIP` before invoking the script.
 
-### Override configuration inline
+### Environment-variable examples
 
 ```bash
 WEBVIEW_URL="~/site/index.html" ICON_SOURCE_FILE="~/icons/app.svg" ./build.sh --release
 ```
 
 ```bash
-TRUSTED_ORIGINS="
-https://app.example.com
-https://cdn.example.com
-" WEBVIEW_URL="https://app.example.com" ./build.sh --release
+TRUSTED_ORIGINS="https://app.example.com https://cdn.example.com" \
+WEBVIEW_URL="https://app.example.com" \
+./build.sh --release
 ```
 
 ---
@@ -211,18 +267,18 @@ https://cdn.example.com
 
 After building, the results are stored in:
 
-```
+```text
 ./<project-name>/bin/
 ```
 
 | File | Description |
 |------|--------------|
-| *<project>.apk* | Installable debug Android package. |
-| *<project>.aab* | Android App Bundle for Play Store distribution. |
+| `*.apk` | Installable debug Android package. |
+| `*.aab` | Android App Bundle for Play Store distribution. |
 
 Example:
 
-```
+```text
 myapp/bin/myapp.apk
 myapp/bin/myapp.aab
 ```
@@ -233,7 +289,7 @@ The automatically generated debug keystore is stored at `~/.android/debug.keysto
 
 ## Release Signing
 
-If you define these environment variables before running *--release*, the *.aab* will be signed automatically:
+If you define these environment variables before running `--release`, the `.aab` will be signed automatically:
 
 ```bash
 export RELEASE_KEYSTORE="/path/to/keystore.jks"
@@ -242,61 +298,30 @@ export RELEASE_STORE_PASS="storepassword"
 export RELEASE_KEY_PASS="keypassword"
 ```
 
-You can add these lines permanently to your shell configuration file (for example *~/.bashrc*, *~/.zshrc*, or *~/.profile*) so they are automatically available in all sessions.
-
-If they're not set, the build still completes, producing an unsigned AAB (suitable for Google Play App Signing). The APK generated by `--release` remains a debug APK for installation and testing.
+If they are not set, the build still completes, producing an unsigned AAB suitable for Google Play App Signing. The APK generated by `--release` remains a debug APK for installation and testing.
 
 ### Creating a Keystore
 
-If you don't have one, create it manually with:
-
 ```bash
-keytool -genkeypair -v   -keystore my-release-key.jks   -keyalg RSA -keysize 2048 -validity 10000   -alias mykey   -storepass storepassword   -keypass keypassword   -dname "CN=MyCompany, OU=Dev, O=MyCompany, L=City, S=State, C=US"
-```
-
-Save the *.jks* file and reference it via the environment variables above.
-
----
-
-## Example
-
-Build an app from a website with an AAB for Play Store upload:
-
-```bash
-WEBVIEW_URL="https://myportfolio.com" DISPLAY_NAME="My Portfolio" PACKAGE_NAME="com.me.portfolio" ./build.sh --release
-```
-
-Build a remote app with an explicit JS bridge allowlist:
-
-```bash
-TRUSTED_ORIGINS="
-https://myportfolio.com
-https://cdn.myportfolio.com
-" WEBVIEW_URL="https://myportfolio.com" DISPLAY_NAME="My Portfolio" PACKAGE_NAME="com.me.portfolio" ./build.sh --release
-```
-
-Or from a local HTML file:
-
-```bash
-WEBVIEW_URL="~/projects/portfolio/index.html" DISPLAY_NAME="My Portfolio" PACKAGE_NAME="com.me.portfolio" ICON_SOURCE_FILE="~/icons/portfolio.svg" ./build.sh --release
-```
-
-Results:
-
-```
-myportfolio/bin/myportfolio.apk
-myportfolio/bin/myportfolio.aab
+keytool -genkeypair -v \
+    -keystore my-release-key.jks \
+    -keyalg RSA -keysize 2048 -validity 10000 \
+    -alias mykey \
+    -storepass storepassword \
+    -keypass keypassword \
+    -dname "CN=MyCompany, OU=Dev, O=MyCompany, L=City, S=State, C=US"
 ```
 
 ---
 
 ## Notes
 
-- Works offline for local apps once the required Android SDK tools and BundleTool (when building AABs) are already available
-- Supports both remote URLs and local HTML assets
-- Accepts icons from local files or remote URLs
-- Generates icons automatically for all densities
-- Compatible with Android SDK 24-34
+- Works offline for local apps once the required Android SDK tools and BundleTool, when building AABs, are already available.
+- Supports both remote URLs and packaged local HTML assets.
+- Accepts icons from local files or remote URLs.
+- Generates icons automatically for all densities.
+- Can package explicitly selected native Android executables.
+- Compatible with Android SDK 24-34.
 
 ---
 
