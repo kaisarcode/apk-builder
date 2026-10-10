@@ -336,6 +336,7 @@ detect_exec_abi () {
 prepare_executables () {
     JAVA_EXECUTABLE_CASES=""
     EXECUTABLE_NAMES=""
+    EXECUTABLE_TARGETS=""
 
     [ -n "$EXECUTABLES" ] || return
     command -v file >/dev/null 2>&1 || { echo "Error: 'file' is required when using --exec." >&2; exit 1; }
@@ -352,18 +353,19 @@ prepare_executables () {
                 ;;
         esac
 
-        case " $EXECUTABLE_NAMES " in
-            *" $EXEC_NAME "*)
-                echo "Error: Duplicate executable name: $EXEC_NAME" >&2
-                exit 1
-                ;;
-        esac
-        EXECUTABLE_NAMES="$EXECUTABLE_NAMES $EXEC_NAME"
-
         EXEC_ABI=$(detect_exec_abi "$EXEC_PATH") || {
             echo "Error: Unsupported executable architecture: $EXEC_PATH" >&2
             exit 1
         }
+
+        EXEC_TARGET="$EXEC_NAME@$EXEC_ABI"
+        case " $EXECUTABLE_TARGETS " in
+            *" $EXEC_TARGET "*)
+                echo "Error: Duplicate executable target: $EXEC_NAME ($EXEC_ABI)" >&2
+                exit 1
+                ;;
+        esac
+        EXECUTABLE_TARGETS="$EXECUTABLE_TARGETS $EXEC_TARGET"
 
         EXEC_PACKAGE_NAME=$(printf '%s' "$EXEC_NAME" | tr '.-' '__')
         EXEC_PACKAGE_FILE="libexec_${EXEC_PACKAGE_NAME}.so"
@@ -371,9 +373,16 @@ prepare_executables () {
         mkdir -p "$EXEC_PACKAGE_DIR"
         cp "$EXEC_PATH" "$EXEC_PACKAGE_DIR/$EXEC_PACKAGE_FILE" || exit 1
 
-        JAVA_EXECUTABLE_CASES="$JAVA_EXECUTABLE_CASES
+        case " $EXECUTABLE_NAMES " in
+            *" $EXEC_NAME "*)
+                ;;
+            *)
+                EXECUTABLE_NAMES="$EXECUTABLE_NAMES $EXEC_NAME"
+                JAVA_EXECUTABLE_CASES="$JAVA_EXECUTABLE_CASES
             case \"$EXEC_NAME\":
                 return new File(context.getApplicationInfo().nativeLibraryDir, \"$EXEC_PACKAGE_FILE\").getAbsolutePath();"
+                ;;
+        esac
 
         echo "Including executable: $EXEC_NAME ($EXEC_ABI)"
     done <<EOF
