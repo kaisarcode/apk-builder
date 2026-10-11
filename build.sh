@@ -12,7 +12,7 @@ PACKAGE_NAME="${PACKAGE_NAME:-com.kaisarcode.myapp}"
 WEBVIEW_URL="${WEBVIEW_URL:-https://google.com/}"
 ICON_SOURCE_FILE="${ICON_SOURCE_FILE:-./icon.svg}"
 ICON_BACKGROUND="${ICON_BACKGROUND:-#000000}"
-BACKGROUND="${BACKGROUND:-}"
+BACKGROUND="${BACKGROUND:-#101010}"
 TRUSTED_ORIGINS="${TRUSTED_ORIGINS:-}"
 IS_FULLSCREEN="${IS_FULLSCREEN:-false}"
 VERSION_CODE="${VERSION_CODE:-1}"
@@ -668,7 +668,10 @@ EOF
 
     APP_THEME="@style/AppTheme"
     BACKGROUND_SETUP="
-        webView.setBackgroundColor(android.graphics.Color.parseColor(\"$BACKGROUND\"));"
+        int appBackground = android.graphics.Color.parseColor(\"$BACKGROUND\");
+        getWindow().setStatusBarColor(appBackground);
+        getWindow().setNavigationBarColor(appBackground);
+        webView.setBackgroundColor(appBackground);"
 else
     rm -f "$VALUES_DIR/app_colors.xml" "$VALUES_DIR/styles.xml"
 fi
