@@ -8,18 +8,12 @@
 <body>
     <h1>KCAPK Test</h1>
     <p>If you can read this, the packaged local WebView app was built successfully.</p>
-    <button id="run-exec" type="button">Run packaged executable</button>
-    <pre id="exec-output">Not run yet.</pre>
+    <button id="run-exec">Run packaged executable</button>
+    <pre id="exec-output"></pre>
     <script>
-        document.getElementById('run-exec').addEventListener('click', function () {
-            var output = document.getElementById('exec-output');
-
-            if (!window.NativeBridge) {
-                output.textContent = 'NativeBridge unavailable.';
-                return;
-            }
-
-            output.textContent = NativeBridge.exec(['kcapk-test-exec', 'hello']);
+        document.getElementById("run-exec").addEventListener("click", function () {
+            var output = NativeBridge.exec(["kcapk-test-exec"]);
+            document.getElementById("exec-output").textContent = output;
         });
     </script>
 </body>
