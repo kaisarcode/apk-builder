@@ -93,14 +93,15 @@ Run directly:
 ./build.sh
 ```
 
-By default, it builds a debug APK in *./<project-name>/bin/*.
+By default, it builds a debug APK in *./build/<project-name>/bin/*.
 
 ### Command-line options
 
 | Option | Description |
 |------|--------------|
 | `--display-name <name>` | Application display name. |
-| `--project-name <name>` | Local generated project/output directory name. |
+| `--project-name <name>` | Project name used for generated package filenames and the default build directory. |
+| `--output-path <path>` | Generated Android project/build directory. Defaults to `./build/<project-name>`. |
 | `--package-name <name>` | Android package name. |
 | `--webview-url <url|file>` | Remote URL or local HTML entry file. |
 | `--icon <path|url>` | Local or remote icon source. |
@@ -122,6 +123,12 @@ Build a debug APK:
 
 ```bash
 ./build.sh
+```
+
+Build into a custom directory:
+
+```bash
+./build.sh --project-name myapp --output-path /tmp/kcapk/myapp
 ```
 
 Build a local WebView app with a packaged executable:
@@ -158,6 +165,7 @@ The primary settings can also be supplied through environment variables:
 ```sh
 DISPLAY_NAME="My App"
 PROJECT_NAME="myapp"
+OUTPUT_PATH="./build/myapp"
 PACKAGE_NAME="com.example.myapp"
 WEBVIEW_URL="https://example.com/"
 ICON_SOURCE_FILE="./icon.svg"
@@ -174,6 +182,8 @@ The precedence is:
 ```text
 command-line option > environment variable > built-in default
 ```
+
+When `OUTPUT_PATH` is not set, KCAPK uses `./build/<project-name>`.
 
 ### WebView source
 
@@ -319,6 +329,10 @@ WEBVIEW_URL="~/site/index.html" ICON_SOURCE_FILE="~/icons/app.svg" ./build.sh --
 ```
 
 ```bash
+OUTPUT_PATH="/tmp/kcapk/myapp" WEBVIEW_URL="~/site/index.html" ./build.sh
+```
+
+```bash
 TRUSTED_ORIGINS="https://app.example.com https://cdn.example.com" \
 WEBVIEW_URL="https://app.example.com" \
 ./build.sh --release
@@ -328,11 +342,19 @@ WEBVIEW_URL="https://app.example.com" \
 
 ## Output
 
-After building, the results are stored in:
+By default, the generated Android project and build artifacts are stored under:
 
 ```text
-./<project-name>/bin/
+./build/<project-name>/
 ```
+
+The final APK/AAB files are stored in:
+
+```text
+./build/<project-name>/bin/
+```
+
+Use `--output-path <path>` or `OUTPUT_PATH` to relocate the entire generated project/build tree.
 
 | File | Description |
 |------|--------------|
@@ -342,8 +364,8 @@ After building, the results are stored in:
 Example:
 
 ```text
-myapp/bin/myapp.apk
-myapp/bin/myapp.aab
+build/myapp/bin/myapp.apk
+build/myapp/bin/myapp.aab
 ```
 
 The automatically generated debug keystore is stored at `~/.android/debug.keystore`.
@@ -399,5 +421,3 @@ If you'd like to reach out, you can send an email to kaisar@kaisarcode.com. Plea
 ## License
 
 [![GPLv3](https://www.gnu.org/graphics/gplv3-127x51.png)](https://www.gnu.org/licenses/gpl-3.0.html)
-
-This project is distributed under the **GNU General Public License version 3 (GPLv3)**.
