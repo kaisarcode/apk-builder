@@ -7,6 +7,7 @@
 
 DISPLAY_NAME="${DISPLAY_NAME:-My App}"
 PROJECT_NAME="${PROJECT_NAME:-myapp}"
+OUTPUT_PATH="${OUTPUT_PATH:-}"
 PACKAGE_NAME="${PACKAGE_NAME:-com.kaisarcode.myapp}"
 WEBVIEW_URL="${WEBVIEW_URL:-https://google.com/}"
 ICON_SOURCE_FILE="${ICON_SOURCE_FILE:-./icon.svg}"
@@ -66,6 +67,12 @@ while [ "$#" -gt 0 ]; do
             shift
             [ "$#" -gt 0 ] || { echo "Error: --project-name requires a value." >&2; exit 1; }
             PROJECT_NAME="$1"
+            shift
+            ;;
+        --output-path)
+            shift
+            [ "$#" -gt 0 ] || { echo "Error: --output-path requires a value." >&2; exit 1; }
+            OUTPUT_PATH="$1"
             shift
             ;;
         --package-name)
@@ -164,7 +171,7 @@ if [ -n "$BACKGROUND" ]; then
     fi
 fi
 
-BASE_DIR="./$PROJECT_NAME"
+BASE_DIR="${OUTPUT_PATH:-./build/$PROJECT_NAME}"
 PACKAGE_SUBPATH="$(echo "$PACKAGE_NAME" | tr . /)"
 SRC_DIR="$BASE_DIR/src/main/java/$PACKAGE_SUBPATH"
 RES_DIR="$BASE_DIR/res"
@@ -1070,8 +1077,10 @@ javac -g:none --release 11 \
     "$JS_INTERFACE_FILE" || { echo "Error: JAVAC failed."; exit 1; }
 
 echo "Packaging .class files into temporary JAR..."
-CURRENT_DIR=$(pwd)
-ABS_TEMP_JAR_FILE="$CURRENT_DIR/$TEMP_JAR_FILE"
+case "$TEMP_JAR_FILE" in
+    /*) ABS_TEMP_JAR_FILE="$TEMP_JAR_FILE" ;;
+    *) ABS_TEMP_JAR_FILE="$(pwd)/$TEMP_JAR_FILE" ;;
+esac
 (cd "$TEMP_CLASSES_DIR" && jar cf "$ABS_TEMP_JAR_FILE" .) || { echo "Error: JAR creation failed."; exit 1; }
 
 echo "Generating Dalvik/ART bytecode..."
