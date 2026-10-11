@@ -12,26 +12,22 @@ The generated APK is written to:
 tests/test.apk
 ```
 
-The test also packages a native Android executable through `--exec`. By default, `tests/exec.c` is compiled for Android arm64 using the Android NDK. Set `ANDROID_NDK_HOME` or `ANDROID_NDK_ROOT`, or make the NDK available under `$ANDROID_SDK_ROOT/ndk/`.
+The test also packages prebuilt native Android executables through `--exec`. The repository ships the same logical `kcapk-test-exec` fixture for `arm64-v8a` and `x86_64` under `tests/fixtures/`, so running the test does not require an Android NDK or C compiler.
 
-You can instead provide an already compiled Android executable:
+The minimal source used for those fixtures is kept in `tests/exec.c` for reference and reproducibility. It is not compiled by `tests/test.sh`.
 
-```sh
-TEST_EXECUTABLE=/path/to/android/executable sh ./tests/test.sh
-```
-
-The supplied executable is copied to the logical command name `kcapk-test-exec`, packaged into the APK, and verified after the build by inspecting the APK contents.
+After building, the test inspects the APK and verifies that both ABI-specific executable entries were packaged.
 
 When the app runs on a compatible Android device, press **Run packaged executable**. The page invokes:
 
 ```js
-NativeBridge.exec(["kcapk-test-exec", "hello"]);
+NativeBridge.exec(["kcapk-test-exec"]);
 ```
 
 The bundled fixture returns:
 
 ```text
-kcapk external executable OK hello
+kcapk external executable OK
 ```
 
-The intermediate Android project is kept under `tests/.build/`, and the generated executable under `tests/.exec/`. Those directories and `tests/test.apk` are ignored by Git.
+The intermediate Android project is kept under `tests/.build/`; it and `tests/test.apk` are ignored by Git.
