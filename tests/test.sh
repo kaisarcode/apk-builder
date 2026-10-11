@@ -4,7 +4,9 @@ set -eu
 TEST_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 ROOT_DIR=$(CDPATH= cd -- "$TEST_DIR/.." && pwd)
 WORK_DIR=$(mktemp -d "${TMPDIR:-/tmp}/kcapk-test.XXXXXX")
+BUILD_LOG="$WORK_DIR/build.log"
 APK_FILE="$WORK_DIR/bin/test.apk"
+FINAL_APK="$TEST_DIR/test.apk"
 EXEC_ARM64="$TEST_DIR/fixtures/arm64-v8a/kcapk-test-exec"
 EXEC_X86_64="$TEST_DIR/fixtures/x86_64/kcapk-test-exec"
 
@@ -16,7 +18,7 @@ trap cleanup EXIT HUP INT TERM
 [ -f "$EXEC_ARM64" ] || { echo "Missing test fixture: $EXEC_ARM64" >&2; exit 1; }
 [ -f "$EXEC_X86_64" ] || { echo "Missing test fixture: $EXEC_X86_64" >&2; exit 1; }
 
-"$ROOT_DIR/build.sh" \
+if "$ROOT_DIR/build.sh" \
     --display-name "KCAPK Test" \
     --project-name test \
     --package-name com.kaisarcode.kcapk.test \
@@ -24,7 +26,12 @@ trap cleanup EXIT HUP INT TERM
     --icon "$ROOT_DIR/icon.svg" \
     --exec "$EXEC_ARM64" \
     --exec "$EXEC_X86_64" \
-    --output-path "$WORK_DIR"
+    --output-path "$WORK_DIR" >"$BUILD_LOG" 2>&1; then
+    sed '/^INSTALL: adb install /d' "$BUILD_LOG"
+else
+    cat "$BUILD_LOG" >&2
+    exit 1
+fi
 
 unzip -l "$APK_FILE" | grep -q 'lib/arm64-v8a/libexec_kcapk_test_exec.so' || {
     echo "Error: arm64-v8a executable was not packaged in the APK." >&2
@@ -35,5 +42,6 @@ unzip -l "$APK_FILE" | grep -q 'lib/x86_64/libexec_kcapk_test_exec.so' || {
     exit 1
 }
 
-cp "$APK_FILE" "$TEST_DIR/test.apk"
-printf 'Test APK: %s\n' "$TEST_DIR/test.apk"
+cp "$APK_FILE" "$FINAL_APK"
+printf 'Test APK: %s\n' "$FINAL_APK"
+printf 'INSTALL: adb install -r -t %s\n' "$FINAL_APK"
