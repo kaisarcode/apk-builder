@@ -3,10 +3,15 @@ set -eu
 
 TEST_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 ROOT_DIR=$(CDPATH= cd -- "$TEST_DIR/.." && pwd)
-WORK_DIR="$TEST_DIR/.build"
+WORK_DIR=$(mktemp -d "${TMPDIR:-/tmp}/kcapk-test.XXXXXX")
 APK_FILE="$WORK_DIR/bin/test.apk"
 EXEC_ARM64="$TEST_DIR/fixtures/arm64-v8a/kcapk-test-exec"
 EXEC_X86_64="$TEST_DIR/fixtures/x86_64/kcapk-test-exec"
+
+cleanup () {
+    rm -rf "$WORK_DIR"
+}
+trap cleanup EXIT HUP INT TERM
 
 [ -f "$EXEC_ARM64" ] || { echo "Missing test fixture: $EXEC_ARM64" >&2; exit 1; }
 [ -f "$EXEC_X86_64" ] || { echo "Missing test fixture: $EXEC_X86_64" >&2; exit 1; }
