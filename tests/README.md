@@ -30,4 +30,4 @@ The bundled fixture returns:
 kcapk external executable OK
 ```
 
-The intermediate Android project is kept under `tests/.build/`; it and `tests/test.apk` are ignored by Git.
+The Android build workspace is created in a temporary directory outside `tests/` and removed when the test finishes. Only `tests/test.apk` is kept as the generated test artifact.
