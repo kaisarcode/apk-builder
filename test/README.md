@@ -3,7 +3,7 @@
 Build the local KCAPK test application with:
 
 ```sh
-sh ./test/build.sh
+sh ./test/test.sh
 ```
 
 The generated APK is written to:
