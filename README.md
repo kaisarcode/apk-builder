@@ -106,7 +106,7 @@ By default, it builds a debug APK in *./build/<project-name>/bin/*.
 | `--webview-url <url|file>` | Remote URL or local HTML entry file. |
 | `--icon <path|url>` | Local or remote icon source. |
 | `--icon-background <color>` | Adaptive icon background color. |
-| `--background <color>` | Activity/WebView startup background using `#RRGGBB` or `#AARRGGBB`. |
+| `--background <color>` | Activity/WebView/system-bar startup background using `#RRGGBB` or `#AARRGGBB`. Defaults to `#101010`. |
 | `--trusted-origin <origin>` | Trusted bridge origin; repeatable. |
 | `--fullscreen` | Enables fullscreen mode. |
 | `--version-code <N>` | Android version code. |
@@ -139,7 +139,6 @@ Build a local WebView app with a packaged executable:
     --project-name myapp \
     --package-name com.example.myapp \
     --webview-url ./web/index.html \
-    --background '#101010' \
     --exec /path/to/aarch64/android/myexe \
     --exec /path/to/armv7/android/myexe
 ```
@@ -170,7 +169,7 @@ PACKAGE_NAME="com.example.myapp"
 WEBVIEW_URL="https://example.com/"
 ICON_SOURCE_FILE="./icon.svg"
 ICON_BACKGROUND="#1a1a1a"
-BACKGROUND=""
+BACKGROUND="#101010"
 TRUSTED_ORIGINS=""
 IS_FULLSCREEN="false"
 VERSION_CODE=1
@@ -195,7 +194,9 @@ If a local file is detected, the script automatically copies its entire containi
 
 ### Background
 
-`--background` sets both the Activity window background shown while the WebView starts and the WebView background itself.
+KCAPK uses a dark `#101010` background by default. This color is applied to the Activity window shown while the WebView starts, the WebView itself, and the Android status/navigation bars to avoid bright startup surfaces.
+
+`--background` / `BACKGROUND` overrides that color.
 
 Accepted forms are:
 
@@ -207,10 +208,10 @@ Accepted forms are:
 For example:
 
 ```bash
-./build.sh --background '#101010'
+./build.sh --background '#202020'
 ```
 
-An alpha value can be supplied with `#AARRGGBB`. This controls the Activity/WebView background color; it does not enable a special translucent-Activity mode.
+An alpha value can be supplied with `#AARRGGBB`. This controls the Activity/WebView/system-bar background color; it does not enable a special translucent-Activity mode.
 
 ### Trusted origins for JS bridge
 
@@ -406,6 +407,7 @@ keytool -genkeypair -v \
 - Accepts icons from local files or remote URLs.
 - Generates icons automatically for all densities.
 - Can package explicitly selected native Android executables.
+- Uses a dark startup background by default to avoid bright flashes before WebView content renders.
 - Compatible with Android SDK 24-34.
 
 ---
