@@ -7,7 +7,7 @@ Android WebView App Builder
 
 KCAPK is a lightweight POSIX shell script that builds Android apps - mainly WebView-based - directly from the command line.
 It automates every step: generates a full Android project, compiles, signs, and outputs an APK, with optional AAB generation for Play Store distribution.
-No Android Studio, no Gradle - just the Android SDK and a shell.
+No Android Studio, no Gradle.
 
 ---
 
