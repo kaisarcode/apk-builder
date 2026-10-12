@@ -260,6 +260,81 @@ NativeBridge.exec(["myexe", "--param", "hello"]);
 
 `NativeBridge.exec` returns the process output as a string. Standard error is merged into standard output.
 
+### NativeBridge.Android
+
+Android platform APIs exposed by KCAPK live under `NativeBridge.Android`. `NativeBridge.exec` remains at the top level because it represents packaged native executables rather than an Android framework API.
+
+Existing Android helpers are therefore exposed as:
+
+```js
+NativeBridge.Android.showToast("Hello");
+NativeBridge.Android.isOnline();
+```
+
+Permissions are exposed through `NativeBridge.Android.permissions`:
+
+```js
+NativeBridge.Android.permissions.has("notifications");
+NativeBridge.Android.permissions.request("notifications");
+
+NativeBridge.Android.permissions.has("exactAlarms");
+NativeBridge.Android.permissions.request("exactAlarms");
+```
+
+`request()` returns whether KCAPK could start the Android permission request flow. Runtime and special-access requests are asynchronous, so call `has()` again after the user returns to the app to determine the effective state.
+
+Notifications are exposed through `NativeBridge.Android.notifications`:
+
+```js
+NativeBridge.Android.notifications.createChannel({
+    id: "tasks",
+    name: "Tasks",
+    description: "Task notifications",
+    importance: "high",
+    sound: "default"
+});
+
+NativeBridge.Android.notifications.post({
+    id: 10,
+    channel: "tasks",
+    title: "Review server",
+    text: "Check the production logs",
+    group: "work"
+});
+
+NativeBridge.Android.notifications.cancel(10);
+NativeBridge.Android.notifications.cancelAll();
+NativeBridge.Android.notifications.canPost();
+```
+
+On Android 8.0 and newer, importance and sound are channel properties. Once Android creates a channel, the user has final control over those settings and the channel behavior cannot be freely changed by reposting notifications.
+
+Alarms are exposed through `NativeBridge.Android.alarms`. Alarm timestamps use Unix epoch milliseconds. Alarm actions are native so they can run when the WebView is not alive; the first supported action type posts a notification:
+
+```js
+NativeBridge.Android.alarms.schedule({
+    id: 10,
+    at: Date.now() + 60000,
+    exact: true,
+    action: {
+        type: "notification",
+        id: 10,
+        channel: "tasks",
+        title: "Review server",
+        text: "Check the production logs"
+    }
+});
+```
+
+Exact alarms require Android's Alarms & reminders special access on Android 12 and newer. The access can be queried with `NativeBridge.Android.alarms.canScheduleExact()` and requested through `NativeBridge.Android.permissions.request("exactAlarms")`.
+
+Scheduled alarms are persisted by the generated app and future alarms are restored after device boot. Recurrence remains application logic: KCAPK schedules Android alarms but does not define tasks, reminder models, or recurrence rules.
+
+```js
+NativeBridge.Android.alarms.cancel(10);
+NativeBridge.Android.alarms.cancelAll();
+```
+
 ### Multi-ABI executables
 
 The same logical executable can be supplied more than once when each file targets a different Android ABI:
@@ -424,6 +499,6 @@ If you'd like to reach out, you can send an email to kaisar@kaisarcode.com. Plea
 
 ## License
 
-[![LGPLv3](https://www.gnu.org/graphics/lgplv3-147x51.png)](https://www.gnu.org/licenses/lgpl-3.0.html)
+[![LGPLv3](https://www.gnu.org/graphics/lgplv3-147x51.png)](https://www.gnu.org/licenses/lgplv3-147x51.png)
 
 KCAPK is distributed under the **GNU Lesser General Public License version 3 (LGPLv3)**.
