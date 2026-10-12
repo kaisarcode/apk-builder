@@ -3,7 +3,7 @@
 # Summary: Integration test script for kcapk APK builder.
 # Author:  KaisarCode
 # Website: https://kaisarcode.com
-# License: https://www.gnu.org/licenses/gpl-3.0.html
+# License: https://www.gnu.org/licenses/lgpl-3.0.html
 
 TEST_DIR=$(CDPATH='' cd -- "$(dirname -- "$0")" && pwd)
 ROOT_DIR=$(CDPATH='' cd -- "$TEST_DIR/.." && pwd)
