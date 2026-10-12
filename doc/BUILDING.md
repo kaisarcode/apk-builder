@@ -109,3 +109,7 @@ KCAPK is primarily developed and tested on Debian x86_64. The shell script also 
 WSL can be used through a Linux distribution with the same command-line dependencies.
 
 Because the builder intentionally avoids Gradle, compatibility depends directly on the Java and Android command-line tools available on the host.
+
+## Next step
+
+Continue with [Configuration](CONFIGURATION.md).
