@@ -14,7 +14,7 @@ tests/test.apk
 
 The test also packages prebuilt native Android executables through `--exec`. The repository ships the same logical `kcapk-test-exec` fixture for `arm64-v8a` and `x86_64` under `tests/fixtures/`, so running the test does not require an Android NDK or C compiler.
 
-The minimal source used for those fixtures is kept in `tests/exec.c` for reference and reproducibility. It is not compiled by `tests/test.sh`.
+The minimal source used for those fixtures is kept in `tests/fixtures/exec.c` for reference and reproducibility. It is not compiled by `tests/test.sh`.
 
 After building, the test inspects the APK and verifies that both ABI-specific executable entries were packaged.
 
