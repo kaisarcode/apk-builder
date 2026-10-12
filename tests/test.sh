@@ -29,7 +29,6 @@ if "$ROOT_DIR/build.sh" \
     --project-name test \
     --package-name com.kaisarcode.kcapk.test \
     --webview-url "$TEST_DIR/index.html" \
-    --icon "$ROOT_DIR/icon.svg" \
     --exec "$EXEC_ARM64" \
     --exec "$EXEC_X86_64" \
     --output-path "$WORK_DIR" >"$BUILD_LOG" 2>&1; then

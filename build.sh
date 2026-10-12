@@ -5,12 +5,15 @@
 # Website: https://kaisarcode.com
 # License: https://www.gnu.org/licenses/lgpl-3.0.html
 
+SCRIPT_DIR=$(CDPATH='' cd -- "$(dirname -- "$0")" && pwd)
+KCAPK_SRC_DIR="$SCRIPT_DIR/src"
+
 DISPLAY_NAME="${DISPLAY_NAME:-My App}"
 PROJECT_NAME="${PROJECT_NAME:-myapp}"
 OUTPUT_PATH="${OUTPUT_PATH:-}"
 PACKAGE_NAME="${PACKAGE_NAME:-com.kaisarcode.myapp}"
 WEBVIEW_URL="${WEBVIEW_URL:-https://google.com/}"
-ICON_SOURCE_FILE="${ICON_SOURCE_FILE:-./icon.svg}"
+ICON_SOURCE_FILE="${ICON_SOURCE_FILE:-$KCAPK_SRC_DIR/assets/icon.svg}"
 ICON_BACKGROUND="${ICON_BACKGROUND:-#000000}"
 BACKGROUND="${BACKGROUND:-#101010}"
 TRUSTED_ORIGINS="${TRUSTED_ORIGINS:-}"
@@ -210,9 +213,6 @@ ANDROID_JAR="$PLATFORM_DIR/android.jar"
 DEBUG_KEYSTORE="$HOME/.android/debug.keystore"
 
 MANIFEST_FILE="$BASE_DIR/AndroidManifest.xml"
-MAIN_ACTIVITY_FILE="$SRC_DIR/MainActivity.java"
-JS_INTERFACE_FILE="$SRC_DIR/JSBridge.java"
-WEBVIEW_CLIENT_FILE="$SRC_DIR/TrustedWebViewClient.java"
 
 UNSIGNED_APK_TEMP="$TEMP_ROOT_DIR/unsigned.apk"
 ALIGNED_APK_TEMP="$TEMP_ROOT_DIR/aligned.apk"
@@ -338,10 +338,10 @@ detect_exec_abi () {
     esac
 }
 
-# Packages executables requested with --exec and generates Java lookup cases.
+# Packages executables requested with --exec and prepares the Java whitelist.
 # @return None.
 prepare_executables () {
-    JAVA_EXECUTABLE_CASES=""
+    JAVA_EXECUTABLE_NAMES=""
     EXECUTABLE_NAMES=""
     EXECUTABLE_TARGETS=""
 
@@ -385,9 +385,10 @@ prepare_executables () {
                 ;;
             *)
                 EXECUTABLE_NAMES="$EXECUTABLE_NAMES $EXEC_NAME"
-                JAVA_EXECUTABLE_CASES="$JAVA_EXECUTABLE_CASES
-            case \"$EXEC_NAME\":
-                return new File(context.getApplicationInfo().nativeLibraryDir, \"$EXEC_PACKAGE_FILE\").getAbsolutePath();"
+                if [ -n "$JAVA_EXECUTABLE_NAMES" ]; then
+                    JAVA_EXECUTABLE_NAMES="$JAVA_EXECUTABLE_NAMES, "
+                fi
+                JAVA_EXECUTABLE_NAMES="$JAVA_EXECUTABLE_NAMES\"$EXEC_NAME\""
                 ;;
         esac
 
@@ -397,10 +398,85 @@ $EXECUTABLES
 EOF
 }
 
+# Escapes a value for a sed replacement using # as the delimiter.
+# @param $1 Replacement value.
+# @return Prints the escaped replacement.
+escape_template_value () {
+    printf '%s' "$1" | sed 's/[\\&#]/\\&/g'
+}
+
+# Renders one source template into the generated Android project.
+# @param $1 Template path.
+# @param $2 Destination path.
+# @return None.
+render_template () {
+    TEMPLATE_FILE="$1"
+    DESTINATION_FILE="$2"
+
+    [ -f "$TEMPLATE_FILE" ] || { echo "Error: Source template not found: $TEMPLATE_FILE" >&2; exit 1; }
+    mkdir -p "$(dirname "$DESTINATION_FILE")"
+
+    PACKAGE_VALUE=$(escape_template_value "$PACKAGE_NAME")
+    VERSION_CODE_VALUE=$(escape_template_value "$VERSION_CODE")
+    VERSION_NAME_VALUE=$(escape_template_value "$VERSION_NAME")
+    DISPLAY_NAME_VALUE=$(escape_template_value "$DISPLAY_NAME")
+    ICON_BACKGROUND_VALUE=$(escape_template_value "$ICON_BACKGROUND")
+    BACKGROUND_VALUE=$(escape_template_value "$BACKGROUND")
+    APP_THEME_VALUE=$(escape_template_value "$APP_THEME")
+    WEBVIEW_URL_VALUE=$(escape_template_value "$WEBVIEW_URL")
+    TRUSTED_ORIGINS_VALUE=$(escape_template_value "$JAVA_TRUSTED_ORIGINS")
+    EXECUTABLE_NAMES_VALUE=$(escape_template_value "$JAVA_EXECUTABLE_NAMES")
+    FULLSCREEN_VALUE=$(escape_template_value "$IS_FULLSCREEN")
+
+    sed \
+        -e "s#@PACKAGE_NAME@#$PACKAGE_VALUE#g" \
+        -e "s#@VERSION_CODE@#$VERSION_CODE_VALUE#g" \
+        -e "s#@VERSION_NAME@#$VERSION_NAME_VALUE#g" \
+        -e "s#@DISPLAY_NAME@#$DISPLAY_NAME_VALUE#g" \
+        -e "s#@ICON_BACKGROUND@#$ICON_BACKGROUND_VALUE#g" \
+        -e "s#@BACKGROUND@#$BACKGROUND_VALUE#g" \
+        -e "s#@APP_THEME@#$APP_THEME_VALUE#g" \
+        -e "s#@WEBVIEW_URL@#$WEBVIEW_URL_VALUE#g" \
+        -e "s#@TRUSTED_ORIGINS@#$TRUSTED_ORIGINS_VALUE#g" \
+        -e "s#@EXECUTABLE_NAMES@#$EXECUTABLE_NAMES_VALUE#g" \
+        -e "s#@IS_FULLSCREEN@#$FULLSCREEN_VALUE#g" \
+        "$TEMPLATE_FILE" > "$DESTINATION_FILE" || { echo "Error: Failed to render template: $TEMPLATE_FILE" >&2; exit 1; }
+}
+
+# Copies and renders the Android source tree used by generated apps.
+# @return None.
+prepare_source_templates () {
+    JAVA_TEMPLATE_DIR="$KCAPK_SRC_DIR/java"
+    RESOURCE_TEMPLATE_DIR="$KCAPK_SRC_DIR/res"
+    MANIFEST_TEMPLATE="$KCAPK_SRC_DIR/AndroidManifest.xml.in"
+
+    [ -d "$JAVA_TEMPLATE_DIR" ] || { echo "Error: Java source template directory not found: $JAVA_TEMPLATE_DIR" >&2; exit 1; }
+    [ -d "$RESOURCE_TEMPLATE_DIR" ] || { echo "Error: Resource template directory not found: $RESOURCE_TEMPLATE_DIR" >&2; exit 1; }
+
+    echo "Writing Android source templates..."
+    render_template "$MANIFEST_TEMPLATE" "$MANIFEST_FILE"
+
+    for TEMPLATE_FILE in "$JAVA_TEMPLATE_DIR"/*.java.in; do
+        [ -f "$TEMPLATE_FILE" ] || continue
+        TARGET_NAME=$(basename "$TEMPLATE_FILE" .in)
+        render_template "$TEMPLATE_FILE" "$SRC_DIR/$TARGET_NAME"
+    done
+
+    cp -R "$RESOURCE_TEMPLATE_DIR/." "$RES_DIR/" || { echo "Error: Failed to copy Android resource templates." >&2; exit 1; }
+    for TEMPLATE_FILE in $(find "$RES_DIR" -type f -name '*.in' -print); do
+        DESTINATION_FILE=${TEMPLATE_FILE%.in}
+        render_template "$TEMPLATE_FILE" "$DESTINATION_FILE"
+        rm -f "$TEMPLATE_FILE"
+    done
+
+    if [ -z "$BACKGROUND" ]; then
+        rm -f "$VALUES_DIR/app_colors.xml" "$VALUES_DIR/styles.xml"
+    fi
+}
+
 # Builds the Android App Bundle.
 # @return None.
 build_aab () {
-
     setup_release_signing
 
     case "$BASE_MODULE_ZIP" in
@@ -426,7 +502,7 @@ build_aab () {
         --min-sdk-version "$MIN_SDK" \
         --target-sdk-version "$TARGET_SDK" \
         --version-code "$VERSION_CODE" \
-        --version-name "$VERSION_NAME" \
+        --version-name="$VERSION_NAME" \
         --auto-add-overlay || { echo "Error: AAPT2 Protobuf Link failed."; exit 1; }
 
     unzip -q "$FINAL_MODULE_DIR/base_temp.zip" -d "$FINAL_MODULE_DIR"
@@ -648,413 +724,11 @@ for ORIGIN in $RESOLVED_TRUSTED_ORIGINS; do
 done
 
 APP_THEME="@android:style/Theme.DeviceDefault.NoActionBar"
-BACKGROUND_SETUP=""
 if [ -n "$BACKGROUND" ]; then
-    cat << EOF > "$VALUES_DIR/app_colors.xml"
-<?xml version="1.0" encoding="utf-8"?>
-<resources>
-    <color name="app_background">$BACKGROUND</color>
-</resources>
-EOF
-
-    cat << EOF > "$VALUES_DIR/styles.xml"
-<?xml version="1.0" encoding="utf-8"?>
-<resources>
-    <style name="AppTheme" parent="@android:style/Theme.DeviceDefault.NoActionBar">
-        <item name="android:windowBackground">@color/app_background</item>
-    </style>
-</resources>
-EOF
-
     APP_THEME="@style/AppTheme"
-    BACKGROUND_SETUP="
-        int appBackground = android.graphics.Color.parseColor(\"$BACKGROUND\");
-        getWindow().setStatusBarColor(appBackground);
-        getWindow().setNavigationBarColor(appBackground);
-        webView.setBackgroundColor(appBackground);"
-else
-    rm -f "$VALUES_DIR/app_colors.xml" "$VALUES_DIR/styles.xml"
 fi
 
-cat << EOF > "$MANIFEST_FILE"
-<?xml version="1.0" encoding="utf-8"?>
-<manifest xmlns:android="http://schemas.android.com/apk/res/android"
-    package="$PACKAGE_NAME"
-    android:versionCode="$VERSION_CODE"
-    android:versionName="$VERSION_NAME">
-    <uses-permission android:name="android.permission.INTERNET" />
-    <application
-        android:allowBackup="true"
-        android:extractNativeLibs="true"
-        android:icon="@mipmap/ic_launcher"
-        android:roundIcon="@mipmap/ic_launcher"
-        android:label="@string/app_name"
-        android:supportsRtl="true"
-        android:resizeableActivity="true"
-        android:theme="$APP_THEME">
-        <meta-data android:name="android.max_aspect" android:value="2.4" />
-EOF
-
-cat << EOF >> "$MANIFEST_FILE"
-        <activity
-            android:name="$PACKAGE_NAME.MainActivity"
-            android:exported="true"
-            android:windowSoftInputMode="adjustResize"
-            android:configChanges="orientation|screenSize|keyboardHidden|smallestScreenSize|screenLayout">
-            <intent-filter>
-                <action android:name="android.intent.action.MAIN" />
-                <category android:name="android.intent.category.LAUNCHER" />
-            </intent-filter>
-        </activity>
-    </application>
-    <uses-sdk android:minSdkVersion="$MIN_SDK" android:targetSdkVersion="$TARGET_SDK" />
-</manifest>
-EOF
-
-cat << EOF > "$VALUES_DIR/strings.xml"
-<?xml version="1.0" encoding="utf-8"?>
-<resources>
-    <string name="app_name">$DISPLAY_NAME</string>
-    <string name="js_interface_name">AndroidBridge</string>
-</resources>
-EOF
-
-cat << EOF > "$VALUES_DIR/icon_colors.xml"
-<?xml version="1.0" encoding="utf-8"?>
-<resources>
-    <color name="icon_background">$ICON_BACKGROUND</color>
-</resources>
-EOF
-
-cat << EOF > "$MIPMAP_ANYDPI_V26_DIR/ic_launcher.xml"
-<?xml version="1.0" encoding="utf-8"?>
-<adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">
-    <background android:drawable="@color/icon_background" />
-    <foreground android:drawable="@mipmap/ic_launcher_foreground" />
-</adaptive-icon>
-EOF
-
-cat << EOF > "$LAYOUT_DIR/activity_main.xml"
-<?xml version="1.0" encoding="utf-8"?>
-<WebView xmlns:android="http://schemas.android.com/apk/res/android"
-    android:id="@+id/webview"
-    android:layout_width="match_parent"
-    android:layout_height="match_parent" />
-EOF
-
-echo "Writing Java Code..."
-
-FULLSCREEN_IMPORTS=""
-FULLSCREEN_SETUP=""
-if [ "$IS_FULLSCREEN" = "true" ]; then
-    FULLSCREEN_IMPORTS="
-import android.view.Window;
-import android.view.WindowManager;"
-    FULLSCREEN_SETUP="
-        requestWindowFeature(Window.FEATURE_NO_TITLE);
-
-        getWindow().setFlags(
-            WindowManager.LayoutParams.FLAG_FULLSCREEN,
-            WindowManager.LayoutParams.FLAG_FULLSCREEN
-        );
-"
-fi
-
-cat << EOF > "$SRC_DIR/JSBridge.java"
-package $PACKAGE_NAME;
-
-import android.content.Context;
-import android.webkit.JavascriptInterface;
-import android.widget.Toast;
-import android.net.ConnectivityManager;
-import android.net.NetworkInfo;
-import java.io.BufferedReader;
-import java.io.File;
-import java.io.InputStreamReader;
-import java.net.URI;
-import org.json.JSONArray;
-
-public class JSBridge {
-    private static final String LOCAL_ASSET_PREFIX = "file:///android_asset/";
-    private final Context context;
-    private final String[] trustedOrigins;
-    private volatile boolean bridgeAllowed;
-
-    public JSBridge(Context context, String[] trustedOrigins) {
-        this.context = context;
-        this.trustedOrigins = trustedOrigins;
-    }
-
-    public static boolean isTrustedUrl(String url, String[] trustedOrigins) {
-        if (url == null || url.isEmpty()) {
-            return false;
-        }
-
-        if (url.startsWith(LOCAL_ASSET_PREFIX)) {
-            return true;
-        }
-
-        try {
-            URI parsedUrl = URI.create(url);
-            String origin = normalizeOrigin(parsedUrl);
-
-            if (origin == null) {
-                return false;
-            }
-
-            for (String trustedOrigin : trustedOrigins) {
-                try {
-                    URI trustedUri = URI.create(trustedOrigin);
-                    String normalizedTrusted = normalizeOrigin(trustedUri);
-                    if (normalizedTrusted != null && origin.equals(normalizedTrusted)) {
-                        return true;
-                    }
-                } catch (IllegalArgumentException ignored) {
-                    if (origin.equals(trustedOrigin)) {
-                        return true;
-                    }
-                }
-            }
-        } catch (IllegalArgumentException ignored) {
-            return false;
-        }
-
-        return false;
-    }
-
-    private static String normalizeOrigin(URI uri) {
-        String scheme = uri.getScheme();
-        String host = uri.getHost();
-
-        if (scheme == null || host == null) {
-            return null;
-        }
-
-        scheme = scheme.toLowerCase();
-        host = host.toLowerCase();
-        if (host.startsWith("www.")) {
-            host = host.substring(4);
-        }
-
-        int port = uri.getPort();
-        if (port == -1) {
-            return scheme + "://" + host;
-        }
-
-        return scheme + "://" + host + ":" + port;
-    }
-
-    public void setCurrentUrl(String url) {
-        bridgeAllowed = isTrustedUrl(url, trustedOrigins);
-    }
-
-    private boolean canUseBridge() {
-        return bridgeAllowed;
-    }
-
-    private String executablePath(String name) {
-        switch (name) {$JAVA_EXECUTABLE_CASES
-            default:
-                return null;
-        }
-    }
-
-    @JavascriptInterface
-    public String exec(String json) {
-        if (!canUseBridge()) {
-            return "";
-        }
-        if (json == null || json.isEmpty()) {
-            return "exec: missing arguments";
-        }
-
-        try {
-            JSONArray values = new JSONArray(json);
-            if (values.length() == 0 || values.isNull(0)) {
-                return "exec: missing executable";
-            }
-
-            String[] command = new String[values.length()];
-            for (int i = 0; i < values.length(); i++) {
-                if (values.isNull(i)) {
-                    return "exec: invalid argument";
-                }
-                command[i] = values.getString(i);
-            }
-
-            String executable = executablePath(command[0]);
-            if (executable == null) {
-                return "exec: executable not exposed: " + command[0];
-            }
-            command[0] = executable;
-
-            ProcessBuilder builder = new ProcessBuilder(command);
-            builder.redirectErrorStream(true);
-            Process process = builder.start();
-            BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream()));
-            StringBuilder output = new StringBuilder();
-            String line;
-
-            while ((line = reader.readLine()) != null) {
-                if (output.length() > 0) {
-                    output.append('\n');
-                }
-                output.append(line);
-            }
-
-            int code = process.waitFor();
-            if (code != 0 && output.length() == 0) {
-                return "exec: process exited with code " + code;
-            }
-            return output.toString();
-        } catch (Exception error) {
-            return "exec: " + error.getMessage();
-        }
-    }
-
-    @JavascriptInterface
-    public void showToast(String message) {
-        if (!canUseBridge()) {
-            return;
-        }
-
-        Toast.makeText(context, message, Toast.LENGTH_SHORT).show();
-    }
-
-    @JavascriptInterface
-    public boolean isOnline() {
-        if (!canUseBridge()) {
-            return false;
-        }
-
-        ConnectivityManager cm = (ConnectivityManager) context.getSystemService(Context.CONNECTIVITY_SERVICE);
-        if (cm != null) {
-            NetworkInfo netInfo = cm.getActiveNetworkInfo();
-            return netInfo != null && netInfo.isConnected();
-        }
-        return false;
-    }
-}
-EOF
-
-cat << EOF > "$SRC_DIR/TrustedWebViewClient.java"
-package $PACKAGE_NAME;
-
-import android.content.Context;
-import android.content.Intent;
-import android.net.Uri;
-import android.webkit.WebResourceRequest;
-import android.webkit.WebView;
-import android.webkit.WebViewClient;
-
-public class TrustedWebViewClient extends WebViewClient {
-    private static final String NATIVE_BRIDGE_SCRIPT =
-        "window.NativeBridge={exec:function(args){return window.AndroidBridge.exec(JSON.stringify(args));},"
-        + "showToast:function(message){return window.AndroidBridge.showToast(message);},"
-        + "isOnline:function(){return window.AndroidBridge.isOnline();}};";
-    private final Context context;
-    private final String[] trustedOrigins;
-    private final JSBridge bridge;
-
-    public TrustedWebViewClient(Context context, String[] trustedOrigins, JSBridge bridge) {
-        this.context = context;
-        this.trustedOrigins = trustedOrigins;
-        this.bridge = bridge;
-    }
-
-    private boolean openExternally(String url) {
-        try {
-            context.startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse(url)));
-            return true;
-        } catch (Exception ignored) {
-            return true;
-        }
-    }
-
-    private boolean handleNavigation(String url) {
-        if (JSBridge.isTrustedUrl(url, trustedOrigins)) {
-            return false;
-        }
-
-        return openExternally(url);
-    }
-
-    private void installBridge(WebView view, String url) {
-        if (JSBridge.isTrustedUrl(url, trustedOrigins)) {
-            view.evaluateJavascript(NATIVE_BRIDGE_SCRIPT, null);
-        }
-    }
-
-    @Override
-    public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest request) {
-        if (!request.isForMainFrame()) {
-            return false;
-        }
-
-        return handleNavigation(request.getUrl().toString());
-    }
-
-    @Override
-    public void onPageStarted(WebView view, String url, android.graphics.Bitmap favicon) {
-        bridge.setCurrentUrl(url);
-        installBridge(view, url);
-        super.onPageStarted(view, url, favicon);
-    }
-
-    @Override
-    public void onPageFinished(WebView view, String url) {
-        installBridge(view, url);
-        super.onPageFinished(view, url);
-    }
-}
-EOF
-
-cat << EOF > "$SRC_DIR/MainActivity.java"
-package $PACKAGE_NAME;
-
-import android.app.Activity;
-import android.os.Bundle;
-import android.webkit.WebView;
-import android.content.res.Resources;
-$FULLSCREEN_IMPORTS
-
-public class MainActivity extends Activity {
-    private WebView webView;
-    private static final String WEBVIEW_URL = "$WEBVIEW_URL";
-    private static final String JS_INTERFACE_NAME = "AndroidBridge";
-    private static final String[] TRUSTED_ORIGINS = { $JAVA_TRUSTED_ORIGINS };
-
-    @Override
-    public void onCreate(Bundle savedInstanceState) {
-$FULLSCREEN_SETUP
-        super.onCreate(savedInstanceState);
-        Resources res = getResources();
-
-        int layoutResId = res.getIdentifier("activity_main", "layout", getPackageName());
-        setContentView(layoutResId);
-
-        int webViewResId = res.getIdentifier("webview", "id", getPackageName());
-        webView = (WebView) findViewById(webViewResId);
-$BACKGROUND_SETUP
-
-        webView.getSettings().setJavaScriptEnabled(true);
-        webView.getSettings().setDomStorageEnabled(true);
-        webView.getSettings().setUseWideViewPort(true);
-        webView.getSettings().setLoadWithOverviewMode(true);
-        webView.setVerticalScrollBarEnabled(false);
-        JSBridge bridge = new JSBridge(this, TRUSTED_ORIGINS);
-        bridge.setCurrentUrl(WEBVIEW_URL);
-        webView.setWebViewClient(new TrustedWebViewClient(this, TRUSTED_ORIGINS, bridge));
-        webView.addJavascriptInterface(bridge, JS_INTERFACE_NAME);
-        webView.loadUrl(WEBVIEW_URL);
-    }
-
-    @Override
-    public void onBackPressed() {
-        if (webView.canGoBack()) { webView.goBack(); } else { super.onBackPressed(); }
-    }
-}
-EOF
+prepare_source_templates
 
 echo "Compiling Resources with AAPT2..."
 "$AAPT2" compile --dir "$RES_DIR" -o "$FLAT_RES_DIR/res.zip" || { echo "Error: AAPT2 Compile failed."; exit 1; }
@@ -1075,9 +749,7 @@ javac -g:none --release 11 \
     -classpath "$ANDROID_JAR" \
     -d "$TEMP_CLASSES_DIR" \
     "$R_PACKAGE_DIR/R.java" \
-    "$WEBVIEW_CLIENT_FILE" \
-    "$MAIN_ACTIVITY_FILE" \
-    "$JS_INTERFACE_FILE" || { echo "Error: JAVAC failed."; exit 1; }
+    "$SRC_DIR"/*.java || { echo "Error: JAVAC failed."; exit 1; }
 
 echo "Packaging .class files into temporary JAR..."
 case "$TEMP_JAR_FILE" in

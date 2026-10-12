@@ -1,0 +1,60 @@
+package @PACKAGE_NAME@;
+
+import android.app.Activity;
+import android.content.res.Resources;
+import android.os.Bundle;
+import android.view.Window;
+import android.view.WindowManager;
+import android.webkit.WebView;
+
+public class MainActivity extends Activity {
+    private WebView webView;
+    private static final String WEBVIEW_URL = "@WEBVIEW_URL@";
+    private static final String JS_INTERFACE_NAME = "AndroidBridge";
+    private static final String[] TRUSTED_ORIGINS = { @TRUSTED_ORIGINS@ };
+    private static final boolean IS_FULLSCREEN = @IS_FULLSCREEN@;
+    private static final String APP_BACKGROUND = "@BACKGROUND@";
+
+    @Override
+    public void onCreate(Bundle savedInstanceState) {
+        if (IS_FULLSCREEN) {
+            requestWindowFeature(Window.FEATURE_NO_TITLE);
+            getWindow().setFlags(
+                WindowManager.LayoutParams.FLAG_FULLSCREEN,
+                WindowManager.LayoutParams.FLAG_FULLSCREEN
+            );
+        }
+
+        super.onCreate(savedInstanceState);
+        Resources res = getResources();
+
+        int layoutResId = res.getIdentifier("activity_main", "layout", getPackageName());
+        setContentView(layoutResId);
+
+        int webViewResId = res.getIdentifier("webview", "id", getPackageName());
+        webView = (WebView) findViewById(webViewResId);
+
+        if (!APP_BACKGROUND.isEmpty()) {
+            int appBackground = android.graphics.Color.parseColor(APP_BACKGROUND);
+            getWindow().setStatusBarColor(appBackground);
+            getWindow().setNavigationBarColor(appBackground);
+            webView.setBackgroundColor(appBackground);
+        }
+
+        webView.getSettings().setJavaScriptEnabled(true);
+        webView.getSettings().setDomStorageEnabled(true);
+        webView.getSettings().setUseWideViewPort(true);
+        webView.getSettings().setLoadWithOverviewMode(true);
+        webView.setVerticalScrollBarEnabled(false);
+        JSBridge bridge = new JSBridge(this, TRUSTED_ORIGINS);
+        bridge.setCurrentUrl(WEBVIEW_URL);
+        webView.setWebViewClient(new TrustedWebViewClient(this, TRUSTED_ORIGINS, bridge));
+        webView.addJavascriptInterface(bridge, JS_INTERFACE_NAME);
+        webView.loadUrl(WEBVIEW_URL);
+    }
+
+    @Override
+    public void onBackPressed() {
+        if (webView.canGoBack()) { webView.goBack(); } else { super.onBackPressed(); }
+    }
+}
