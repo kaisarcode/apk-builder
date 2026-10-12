@@ -427,6 +427,8 @@ render_template () {
     TRUSTED_ORIGINS_VALUE=$(escape_template_value "$JAVA_TRUSTED_ORIGINS")
     EXECUTABLE_NAMES_VALUE=$(escape_template_value "$JAVA_EXECUTABLE_NAMES")
     FULLSCREEN_VALUE=$(escape_template_value "$IS_FULLSCREEN")
+    MIN_SDK_VALUE=$(escape_template_value "$MIN_SDK")
+    TARGET_SDK_VALUE=$(escape_template_value "$TARGET_SDK")
 
     sed \
         -e "s#@PACKAGE_NAME@#$PACKAGE_VALUE#g" \
@@ -440,6 +442,8 @@ render_template () {
         -e "s#@TRUSTED_ORIGINS@#$TRUSTED_ORIGINS_VALUE#g" \
         -e "s#@EXECUTABLE_NAMES@#$EXECUTABLE_NAMES_VALUE#g" \
         -e "s#@IS_FULLSCREEN@#$FULLSCREEN_VALUE#g" \
+        -e "s#@MIN_SDK@#$MIN_SDK_VALUE#g" \
+        -e "s#@TARGET_SDK@#$TARGET_SDK_VALUE#g" \
         "$TEMPLATE_FILE" > "$DESTINATION_FILE" || { echo "Error: Failed to render template: $TEMPLATE_FILE" >&2; exit 1; }
 }
 
@@ -449,6 +453,7 @@ prepare_source_templates () {
     JAVA_TEMPLATE_DIR="$KCAPK_SRC_DIR/java"
     RESOURCE_TEMPLATE_DIR="$KCAPK_SRC_DIR/res"
     MANIFEST_TEMPLATE="$KCAPK_SRC_DIR/AndroidManifest.xml.in"
+    RESOURCE_TEMPLATE_LIST="$TEMP_ROOT_DIR/resource_templates.list"
 
     [ -d "$JAVA_TEMPLATE_DIR" ] || { echo "Error: Java source template directory not found: $JAVA_TEMPLATE_DIR" >&2; exit 1; }
     [ -d "$RESOURCE_TEMPLATE_DIR" ] || { echo "Error: Resource template directory not found: $RESOURCE_TEMPLATE_DIR" >&2; exit 1; }
@@ -463,11 +468,14 @@ prepare_source_templates () {
     done
 
     cp -R "$RESOURCE_TEMPLATE_DIR/." "$RES_DIR/" || { echo "Error: Failed to copy Android resource templates." >&2; exit 1; }
-    for TEMPLATE_FILE in $(find "$RES_DIR" -type f -name '*.in' -print); do
+    find "$RES_DIR" -type f -name '*.in' -print > "$RESOURCE_TEMPLATE_LIST" || { echo "Error: Failed to enumerate Android resource templates." >&2; exit 1; }
+    while IFS= read -r TEMPLATE_FILE; do
+        [ -n "$TEMPLATE_FILE" ] || continue
         DESTINATION_FILE=${TEMPLATE_FILE%.in}
         render_template "$TEMPLATE_FILE" "$DESTINATION_FILE"
         rm -f "$TEMPLATE_FILE"
-    done
+    done < "$RESOURCE_TEMPLATE_LIST"
+    rm -f "$RESOURCE_TEMPLATE_LIST"
 
     if [ -z "$BACKGROUND" ]; then
         rm -f "$VALUES_DIR/app_colors.xml" "$VALUES_DIR/styles.xml"
@@ -502,7 +510,7 @@ build_aab () {
         --min-sdk-version "$MIN_SDK" \
         --target-sdk-version "$TARGET_SDK" \
         --version-code "$VERSION_CODE" \
-        --version-name="$VERSION_NAME" \
+        --version-name "$VERSION_NAME" \
         --auto-add-overlay || { echo "Error: AAPT2 Protobuf Link failed."; exit 1; }
 
     unzip -q "$FINAL_MODULE_DIR/base_temp.zip" -d "$FINAL_MODULE_DIR"
