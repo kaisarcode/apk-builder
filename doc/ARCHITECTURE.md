@@ -89,3 +89,7 @@ KCAPK intentionally exposes primitives rather than application-specific concepts
 For example, alarms and notifications are native capabilities, while concepts such as tasks, reminders, recurrence rules, synchronization models, or business workflows belong to the web application using KCAPK.
 
 This keeps the builder reusable across unrelated applications.
+
+## Next step
+
+Continue with [Building](BUILDING.md).
