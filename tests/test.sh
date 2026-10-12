@@ -1,8 +1,12 @@
 #!/bin/sh
-set -eu
+# test.sh
+# Summary: Integration test script for kcapk APK builder.
+# Author:  KaisarCode
+# Website: https://kaisarcode.com
+# License: https://www.gnu.org/licenses/gpl-3.0.html
 
-TEST_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
-ROOT_DIR=$(CDPATH= cd -- "$TEST_DIR/.." && pwd)
+TEST_DIR=$(CDPATH='' cd -- "$(dirname -- "$0")" && pwd)
+ROOT_DIR=$(CDPATH='' cd -- "$TEST_DIR/.." && pwd)
 WORK_DIR=$(mktemp -d "${TMPDIR:-/tmp}/kcapk-test.XXXXXX")
 BUILD_LOG="$WORK_DIR/build.log"
 APK_FILE="$WORK_DIR/bin/test.apk"
@@ -10,6 +14,8 @@ FINAL_APK="$TEST_DIR/test.apk"
 EXEC_ARM64="$TEST_DIR/fixtures/arm64-v8a/kcapk-test-exec"
 EXEC_X86_64="$TEST_DIR/fixtures/x86_64/kcapk-test-exec"
 
+# Removes the temporary working directory.
+# @return None.
 cleanup () {
     rm -rf "$WORK_DIR"
 }
