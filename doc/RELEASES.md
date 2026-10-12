@@ -99,3 +99,7 @@ VERSION_NAME=1.2.0
 The AAB build reuses the same generated Android sources, resources, assets, DEX output, and packaged native libraries as the APK build.
 
 This keeps both artifacts based on the same KCAPK configuration.
+
+## Next step
+
+Continue with [Testing](TESTING.md).
