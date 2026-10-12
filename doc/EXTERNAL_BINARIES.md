@@ -187,3 +187,7 @@ The KCAPK integration point begins with the finished executable file.
 The repository integration test packages the same fixture executable for multiple ABIs and verifies that the expected entries exist inside the APK.
 
 See [Testing](TESTING.md).
+
+## Next step
+
+Continue with [Release builds](RELEASES.md).
