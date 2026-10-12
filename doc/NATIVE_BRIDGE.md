@@ -80,3 +80,7 @@ Packaging native programs, ABI handling, the executable whitelist, and the `Nati
 Some Android capabilities naturally require asynchronous results, such as file pickers or activity-result based flows. KCAPK does not currently expose a general Promise/request-ID layer.
 
 Such APIs should be added only after a consistent asynchronous bridge mechanism exists rather than inventing a different callback convention for each feature.
+
+## Next step
+
+Continue with [Android APIs](ANDROID_APIS.md).
