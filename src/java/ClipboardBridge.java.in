@@ -1,0 +1,61 @@
+package @PACKAGE_NAME@;
+
+import android.content.ClipData;
+import android.content.ClipboardManager;
+import android.content.Context;
+import android.os.Build;
+
+public class ClipboardBridge {
+    private final Context context;
+
+    public ClipboardBridge(Context context) {
+        this.context = context;
+    }
+
+    public boolean set(String text) {
+        ClipboardManager clipboard = clipboard();
+        if (clipboard == null) {
+            return false;
+        }
+        clipboard.setPrimaryClip(ClipData.newPlainText("text", text == null ? "" : text));
+        return true;
+    }
+
+    public String get() {
+        ClipboardManager clipboard = clipboard();
+        if (clipboard == null || !clipboard.hasPrimaryClip()) {
+            return "";
+        }
+
+        ClipData clip = clipboard.getPrimaryClip();
+        if (clip == null || clip.getItemCount() == 0) {
+            return "";
+        }
+
+        CharSequence value = clip.getItemAt(0).coerceToText(context);
+        return value == null ? "" : value.toString();
+    }
+
+    public boolean hasText() {
+        ClipboardManager clipboard = clipboard();
+        return clipboard != null && clipboard.hasPrimaryClip();
+    }
+
+    public boolean clear() {
+        ClipboardManager clipboard = clipboard();
+        if (clipboard == null) {
+            return false;
+        }
+
+        if (Build.VERSION.SDK_INT >= 28) {
+            clipboard.clearPrimaryClip();
+        } else {
+            clipboard.setPrimaryClip(ClipData.newPlainText("text", ""));
+        }
+        return true;
+    }
+
+    private ClipboardManager clipboard() {
+        return (ClipboardManager) context.getSystemService(Context.CLIPBOARD_SERVICE);
+    }
+}

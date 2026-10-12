@@ -1,0 +1,141 @@
+package @PACKAGE_NAME@;
+
+import android.app.Activity;
+import android.content.Context;
+import android.os.Build;
+import android.view.View;
+import android.view.Window;
+import android.view.WindowInsets;
+import android.view.WindowInsetsController;
+import org.json.JSONObject;
+
+public class SystemUIBridge {
+    private final Activity activity;
+
+    public SystemUIBridge(Context context) {
+        this.activity = context instanceof Activity ? (Activity) context : null;
+    }
+
+    public boolean statusBar(String json) {
+        try {
+            JSONObject options = new JSONObject(json);
+            String icons = options.optString("icons", "");
+            if (!"light".equals(icons) && !"dark".equals(icons)) {
+                return false;
+            }
+            return setBarIcons(true, icons);
+        } catch (Exception ignored) {
+            return false;
+        }
+    }
+
+    public boolean navigationBar(String json) {
+        try {
+            JSONObject options = new JSONObject(json);
+            String icons = options.optString("icons", "");
+            if (!"light".equals(icons) && !"dark".equals(icons)) {
+                return false;
+            }
+            return setBarIcons(false, icons);
+        } catch (Exception ignored) {
+            return false;
+        }
+    }
+
+    public boolean hideBars() {
+        if (activity == null) {
+            return false;
+        }
+
+        activity.runOnUiThread(() -> {
+            Window window = activity.getWindow();
+            View decor = window.getDecorView();
+            if (Build.VERSION.SDK_INT >= 30) {
+                WindowInsetsController controller = window.getInsetsController();
+                if (controller != null) {
+                    controller.setSystemBarsBehavior(
+                        WindowInsetsController.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+                    );
+                    controller.hide(WindowInsets.Type.systemBars());
+                }
+            } else {
+                int flags = decor.getSystemUiVisibility();
+                flags |= View.SYSTEM_UI_FLAG_FULLSCREEN;
+                flags |= View.SYSTEM_UI_FLAG_HIDE_NAVIGATION;
+                flags |= View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY;
+                decor.setSystemUiVisibility(flags);
+            }
+        });
+        return true;
+    }
+
+    public boolean showBars() {
+        if (activity == null) {
+            return false;
+        }
+
+        activity.runOnUiThread(() -> {
+            Window window = activity.getWindow();
+            View decor = window.getDecorView();
+            if (Build.VERSION.SDK_INT >= 30) {
+                WindowInsetsController controller = window.getInsetsController();
+                if (controller != null) {
+                    controller.show(WindowInsets.Type.systemBars());
+                }
+            } else {
+                int flags = decor.getSystemUiVisibility();
+                flags &= ~View.SYSTEM_UI_FLAG_FULLSCREEN;
+                flags &= ~View.SYSTEM_UI_FLAG_HIDE_NAVIGATION;
+                flags &= ~View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY;
+                decor.setSystemUiVisibility(flags);
+            }
+        });
+        return true;
+    }
+
+    private boolean setBarIcons(boolean statusBar, String icons) {
+        if (activity == null) {
+            return false;
+        }
+
+        final boolean darkIcons = "dark".equals(icons);
+        activity.runOnUiThread(() -> {
+            Window window = activity.getWindow();
+            View decor = window.getDecorView();
+
+            if (Build.VERSION.SDK_INT >= 30) {
+                WindowInsetsController controller = window.getInsetsController();
+                if (controller == null) {
+                    return;
+                }
+                int mask = statusBar
+                    ? WindowInsetsController.APPEARANCE_LIGHT_STATUS_BARS
+                    : WindowInsetsController.APPEARANCE_LIGHT_NAVIGATION_BARS;
+                controller.setSystemBarsAppearance(darkIcons ? mask : 0, mask);
+                return;
+            }
+
+            int mask;
+            if (statusBar) {
+                if (Build.VERSION.SDK_INT < 23) {
+                    return;
+                }
+                mask = View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR;
+            } else {
+                if (Build.VERSION.SDK_INT < 26) {
+                    return;
+                }
+                mask = View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR;
+            }
+
+            int flags = decor.getSystemUiVisibility();
+            if (darkIcons) {
+                flags |= mask;
+            } else {
+                flags &= ~mask;
+            }
+            decor.setSystemUiVisibility(flags);
+        });
+        return true;
+    }
+}

@@ -1,0 +1,92 @@
+package @PACKAGE_NAME@;
+
+import android.content.Context;
+import android.os.Build;
+import android.os.VibrationEffect;
+import android.os.Vibrator;
+
+public class HapticBridge {
+    private final Context context;
+
+    public HapticBridge(Context context) {
+        this.context = context;
+    }
+
+    public boolean hasVibrator() {
+        Vibrator vibrator = vibrator();
+        return vibrator != null && vibrator.hasVibrator();
+    }
+
+    public boolean vibrate(long milliseconds) {
+        if (milliseconds <= 0L) {
+            return false;
+        }
+
+        Vibrator vibrator = vibrator();
+        if (vibrator == null || !vibrator.hasVibrator()) {
+            return false;
+        }
+
+        if (Build.VERSION.SDK_INT >= 26) {
+            vibrator.vibrate(VibrationEffect.createOneShot(milliseconds, VibrationEffect.DEFAULT_AMPLITUDE));
+        } else {
+            vibrator.vibrate(milliseconds);
+        }
+        return true;
+    }
+
+    public boolean effect(String name) {
+        Vibrator vibrator = vibrator();
+        if (vibrator == null || !vibrator.hasVibrator()) {
+            return false;
+        }
+
+        if (Build.VERSION.SDK_INT >= 29) {
+            int effect;
+            switch (name) {
+                case "doubleClick":
+                    effect = VibrationEffect.EFFECT_DOUBLE_CLICK;
+                    break;
+                case "tick":
+                    effect = VibrationEffect.EFFECT_TICK;
+                    break;
+                case "heavyClick":
+                    effect = VibrationEffect.EFFECT_HEAVY_CLICK;
+                    break;
+                case "click":
+                    effect = VibrationEffect.EFFECT_CLICK;
+                    break;
+                default:
+                    return false;
+            }
+            vibrator.vibrate(VibrationEffect.createPredefined(effect));
+            return true;
+        }
+
+        switch (name) {
+            case "doubleClick":
+                return vibrate(60L);
+            case "tick":
+                return vibrate(15L);
+            case "heavyClick":
+                return vibrate(50L);
+            case "click":
+                return vibrate(25L);
+            default:
+                return false;
+        }
+    }
+
+    public boolean cancel() {
+        Vibrator vibrator = vibrator();
+        if (vibrator == null) {
+            return false;
+        }
+        vibrator.cancel();
+        return true;
+    }
+
+    private Vibrator vibrator() {
+        return (Vibrator) context.getSystemService(Context.VIBRATOR_SERVICE);
+    }
+}

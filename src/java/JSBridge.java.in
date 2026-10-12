@@ -19,6 +19,11 @@ public class JSBridge {
     private final PermissionBridge permissionBridge;
     private final NotificationBridge notificationBridge;
     private final AlarmBridge alarmBridge;
+    private final HapticBridge hapticBridge;
+    private final IntentBridge intentBridge;
+    private final SystemUIBridge systemUIBridge;
+    private final ClipboardBridge clipboardBridge;
+    private final ScreenBridge screenBridge;
     private volatile boolean bridgeAllowed;
 
     public JSBridge(Context context, String[] trustedOrigins) {
@@ -27,6 +32,11 @@ public class JSBridge {
         this.permissionBridge = new PermissionBridge(context);
         this.notificationBridge = new NotificationBridge(context);
         this.alarmBridge = new AlarmBridge(context);
+        this.hapticBridge = new HapticBridge(context);
+        this.intentBridge = new IntentBridge(context);
+        this.systemUIBridge = new SystemUIBridge(context);
+        this.clipboardBridge = new ClipboardBridge(context);
+        this.screenBridge = new ScreenBridge(context);
     }
 
     public static boolean isTrustedUrl(String url, String[] trustedOrigins) {
@@ -238,5 +248,85 @@ public class JSBridge {
     @JavascriptInterface
     public boolean alarmCancelAll() {
         return canUseBridge() && alarmBridge.cancelAll();
+    }
+
+    @JavascriptInterface
+    public boolean hapticHasVibrator() {
+        return canUseBridge() && hapticBridge.hasVibrator();
+    }
+
+    @JavascriptInterface
+    public boolean hapticVibrate(long milliseconds) {
+        return canUseBridge() && hapticBridge.vibrate(milliseconds);
+    }
+
+    @JavascriptInterface
+    public boolean hapticEffect(String name) {
+        return canUseBridge() && hapticBridge.effect(name);
+    }
+
+    @JavascriptInterface
+    public boolean hapticCancel() {
+        return canUseBridge() && hapticBridge.cancel();
+    }
+
+    @JavascriptInterface
+    public boolean intentShare(String json) {
+        return canUseBridge() && intentBridge.share(json);
+    }
+
+    @JavascriptInterface
+    public boolean intentOpenUrl(String url) {
+        return canUseBridge() && intentBridge.openUrl(url);
+    }
+
+    @JavascriptInterface
+    public boolean intentOpenAppSettings() {
+        return canUseBridge() && intentBridge.openAppSettings();
+    }
+
+    @JavascriptInterface
+    public boolean systemUIStatusBar(String json) {
+        return canUseBridge() && systemUIBridge.statusBar(json);
+    }
+
+    @JavascriptInterface
+    public boolean systemUINavigationBar(String json) {
+        return canUseBridge() && systemUIBridge.navigationBar(json);
+    }
+
+    @JavascriptInterface
+    public boolean systemUIHideBars() {
+        return canUseBridge() && systemUIBridge.hideBars();
+    }
+
+    @JavascriptInterface
+    public boolean systemUIShowBars() {
+        return canUseBridge() && systemUIBridge.showBars();
+    }
+
+    @JavascriptInterface
+    public boolean clipboardSet(String text) {
+        return canUseBridge() && clipboardBridge.set(text);
+    }
+
+    @JavascriptInterface
+    public String clipboardGet() {
+        return canUseBridge() ? clipboardBridge.get() : "";
+    }
+
+    @JavascriptInterface
+    public boolean clipboardHasText() {
+        return canUseBridge() && clipboardBridge.hasText();
+    }
+
+    @JavascriptInterface
+    public boolean clipboardClear() {
+        return canUseBridge() && clipboardBridge.clear();
+    }
+
+    @JavascriptInterface
+    public boolean screenKeepOn(boolean enabled) {
+        return canUseBridge() && screenBridge.keepOn(enabled);
     }
 }

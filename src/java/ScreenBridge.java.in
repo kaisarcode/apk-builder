@@ -1,0 +1,28 @@
+package @PACKAGE_NAME@;
+
+import android.app.Activity;
+import android.content.Context;
+import android.view.WindowManager;
+
+public class ScreenBridge {
+    private final Activity activity;
+
+    public ScreenBridge(Context context) {
+        this.activity = context instanceof Activity ? (Activity) context : null;
+    }
+
+    public boolean keepOn(boolean enabled) {
+        if (activity == null) {
+            return false;
+        }
+
+        activity.runOnUiThread(() -> {
+            if (enabled) {
+                activity.getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+            } else {
+                activity.getWindow().clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+            }
+        });
+        return true;
+    }
+}

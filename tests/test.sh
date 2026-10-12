@@ -43,8 +43,25 @@ grep -q 'Android:{' "$GENERATED_JAVA/TrustedWebViewClient.java" || {
     echo "Error: NativeBridge.Android namespace was not generated." >&2
     exit 1
 }
+for NAMESPACE in haptics intents systemUI clipboard screen; do
+    grep -q "$NAMESPACE:{" "$GENERATED_JAVA/TrustedWebViewClient.java" || {
+        echo "Error: NativeBridge.Android.$NAMESPACE namespace was not generated." >&2
+        exit 1
+    }
+done
+for CLASS in HapticBridge IntentBridge SystemUIBridge ClipboardBridge ScreenBridge; do
+    [ -f "$GENERATED_JAVA/$CLASS.java" ] || {
+        echo "Error: $CLASS.java was not generated." >&2
+        exit 1
+    }
+done
+
 grep -q 'android.permission.POST_NOTIFICATIONS' "$WORK_DIR/AndroidManifest.xml" || {
     echo "Error: notification permission was not generated." >&2
+    exit 1
+}
+grep -q 'android.permission.VIBRATE' "$WORK_DIR/AndroidManifest.xml" || {
+    echo "Error: vibration permission was not generated." >&2
     exit 1
 }
 grep -q 'AlarmReceiver' "$WORK_DIR/AndroidManifest.xml" || {

@@ -37,9 +37,16 @@
     <button id="run-exec">Run packaged executable</button>
     <button id="show-toast">Show Android toast</button>
     <button id="check-online">Check Android network state</button>
+    <button id="haptic-click">Haptic click</button>
+    <button id="clipboard-test">Clipboard round-trip</button>
+    <button id="share-test">Open Android Sharesheet</button>
+    <button id="screen-on">Keep screen on</button>
+    <button id="screen-normal">Release screen</button>
     <pre id="exec-output"></pre>
     <pre id="android-output"></pre>
     <script>
+        var androidOutput = document.getElementById("android-output");
+
         document.getElementById("run-exec").addEventListener("click", function () {
             var output = NativeBridge.exec(["kcapk-test-exec"]);
             document.getElementById("exec-output").textContent = output;
@@ -48,8 +55,26 @@
             NativeBridge.Android.showToast("NativeBridge.Android.showToast works");
         });
         document.getElementById("check-online").addEventListener("click", function () {
-            document.getElementById("android-output").textContent =
-                "Online: " + NativeBridge.Android.isOnline();
+            androidOutput.textContent = "Online: " + NativeBridge.Android.isOnline();
+        });
+        document.getElementById("haptic-click").addEventListener("click", function () {
+            androidOutput.textContent = "Haptic: " + NativeBridge.Android.haptics.effect("click");
+        });
+        document.getElementById("clipboard-test").addEventListener("click", function () {
+            NativeBridge.Android.clipboard.set("KCAPK clipboard test");
+            androidOutput.textContent = "Clipboard: " + NativeBridge.Android.clipboard.get();
+        });
+        document.getElementById("share-test").addEventListener("click", function () {
+            NativeBridge.Android.intents.share({
+                text: "KCAPK NativeBridge.Android.intents.share works",
+                chooserTitle: "Share KCAPK test"
+            });
+        });
+        document.getElementById("screen-on").addEventListener("click", function () {
+            androidOutput.textContent = "Keep screen on: " + NativeBridge.Android.screen.keepOn(true);
+        });
+        document.getElementById("screen-normal").addEventListener("click", function () {
+            androidOutput.textContent = "Release screen: " + NativeBridge.Android.screen.keepOn(false);
         });
     </script>
 </body>

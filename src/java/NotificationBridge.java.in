@@ -172,10 +172,14 @@ public class NotificationBridge {
             .setContentTitle(title)
             .setContentText(text)
             .setAutoCancel(options.optBoolean("autoCancel", true))
-            .setOngoing(options.optBoolean("ongoing", false));
+            .setOngoing(options.optBoolean("ongoing", false))
+            .setOnlyAlertOnce(options.optBoolean("onlyAlertOnce", false));
 
         if (!text.isEmpty()) {
             builder.setStyle(new Notification.BigTextStyle().bigText(text));
+        }
+        if (options.has("subText")) {
+            builder.setSubText(options.optString("subText", ""));
         }
         if (options.has("category")) {
             builder.setCategory(options.optString("category", null));
@@ -188,6 +192,25 @@ public class NotificationBridge {
         }
         if (options.has("when")) {
             builder.setWhen(options.optLong("when", System.currentTimeMillis()));
+        }
+        if (options.has("number")) {
+            builder.setNumber(Math.max(0, options.optInt("number", 0)));
+        }
+
+        JSONObject progress = options.optJSONObject("progress");
+        if (progress != null) {
+            int max = Math.max(1, progress.optInt("max", 100));
+            int value = progress.optInt("value", 0);
+            value = Math.max(0, Math.min(value, max));
+            boolean indeterminate = progress.optBoolean("indeterminate", false);
+            builder.setProgress(max, value, indeterminate);
+        }
+
+        if (Build.VERSION.SDK_INT >= 26 && options.has("timeout")) {
+            long timeout = options.optLong("timeout", 0L);
+            if (timeout > 0L) {
+                builder.setTimeoutAfter(timeout);
+            }
         }
 
         Intent launchIntent = context.getPackageManager().getLaunchIntentForPackage(context.getPackageName());
