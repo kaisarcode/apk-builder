@@ -499,6 +499,6 @@ If you'd like to reach out, you can send an email to kaisar@kaisarcode.com. Plea
 
 ## License
 
-[![LGPLv3](https://www.gnu.org/graphics/lgplv3-147x51.png)](https://www.gnu.org/licenses/lgplv3-147x51.png)
+[![LGPLv3](https://www.gnu.org/graphics/lgplv3-147x51.png)](https://www.gnu.org/licenses/lgpl-3.0.html)
 
 KCAPK is distributed under the **GNU Lesser General Public License version 3 (LGPLv3)**.
