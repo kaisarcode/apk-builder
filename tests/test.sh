@@ -56,6 +56,10 @@ for CLASS in HapticBridge IntentBridge SystemUIBridge ClipboardBridge ScreenBrid
     }
 done
 
+grep -q 'android.permission.ACCESS_NETWORK_STATE' "$WORK_DIR/AndroidManifest.xml" || {
+    echo "Error: network state permission was not generated." >&2
+    exit 1
+}
 grep -q 'android.permission.POST_NOTIFICATIONS' "$WORK_DIR/AndroidManifest.xml" || {
     echo "Error: notification permission was not generated." >&2
     exit 1
