@@ -269,7 +269,7 @@
             if (event.target.closest("button")) {
                 NativeBridge.Android.haptics.effect("click");
             }
-        });
+        }, true);
 
         document.getElementById("run-exec").addEventListener("click", function () {
             var output = NativeBridge.exec(["kcapk-test-exec"]);
