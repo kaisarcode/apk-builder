@@ -1,11 +1,15 @@
-// exec.c
-// Summary: Minimal external executable for kcapk integration tests.
-// Author:  KaisarCode
-// Website: https://kaisarcode.com
-// License: https://www.gnu.org/licenses/gpl-3.0.html
+/**
+ * exec.c - External executable test fixture.
+ * Summary: Minimal external executable for kcapk integration tests.
+ *
+ * Author:  KaisarCode
+ * Website: https://kaisarcode.com
+ * License: https://www.gnu.org/licenses/gpl-3.0.html
+ */
 
 static const char message[] = "kcapk external executable OK\n";
 
+#if defined(__aarch64__)
 /**
  * sys_write - Write to a file descriptor using direct syscall.
  * @fd: File descriptor.
@@ -13,8 +17,6 @@ static const char message[] = "kcapk external executable OK\n";
  * @len: Number of bytes to write.
  * @return Number of bytes written, or negative error code.
  */
-
-#if defined(__aarch64__)
 static long sys_write(long fd, const void *buf, long len) {
     register long x0 __asm__("x0") = fd;
     register const void *x1 __asm__("x1") = buf;
