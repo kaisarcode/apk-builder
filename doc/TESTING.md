@@ -90,3 +90,7 @@ Examples include:
 - system-bar behavior across Android versions.
 
 When adding a new Android bridge API, update both the generated integration test checks and the test application when practical.
+
+## Next step
+
+Return to the complete [Documentation](../README.md#documentation) index in the README.
