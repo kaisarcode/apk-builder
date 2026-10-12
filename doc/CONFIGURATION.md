@@ -160,3 +160,7 @@ RELEASE_KEY_PASS
 ```
 
 See [Release builds](RELEASES.md).
+
+## Next step
+
+Continue with [WebView and trusted origins](WEBVIEW.md).
