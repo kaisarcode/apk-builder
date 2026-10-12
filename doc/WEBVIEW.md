@@ -97,3 +97,7 @@ NativeBridge.Android.*
 ```
 
 See [NativeBridge](NATIVE_BRIDGE.md), [Android APIs](ANDROID_APIS.md), and [External binaries](EXTERNAL_BINARIES.md).
+
+## Next step
+
+Continue with [NativeBridge](NATIVE_BRIDGE.md).
