@@ -1,0 +1,261 @@
+package @PACKAGE_NAME@;
+
+import android.Manifest;
+import android.app.Notification;
+import android.app.NotificationChannel;
+import android.app.NotificationManager;
+import android.app.PendingIntent;
+import android.content.Context;
+import android.content.Intent;
+import android.content.pm.PackageManager;
+import android.media.AudioAttributes;
+import android.media.RingtoneManager;
+import android.net.Uri;
+import android.os.Build;
+import org.json.JSONObject;
+
+public class NotificationBridge {
+    private static final String DEFAULT_CHANNEL_ID = "default";
+    private final Context context;
+
+    public NotificationBridge(Context context) {
+        this.context = context;
+    }
+
+    public boolean canPost() {
+        return canPost(context);
+    }
+
+    public boolean createChannel(String json) {
+        try {
+            return createChannel(context, new JSONObject(json));
+        } catch (Exception ignored) {
+            return false;
+        }
+    }
+
+    public boolean post(String json) {
+        try {
+            return post(context, new JSONObject(json));
+        } catch (Exception ignored) {
+            return false;
+        }
+    }
+
+    public boolean cancel(int id) {
+        NotificationManager manager = manager(context);
+        if (manager == null) {
+            return false;
+        }
+        manager.cancel(id);
+        return true;
+    }
+
+    public boolean cancelAll() {
+        NotificationManager manager = manager(context);
+        if (manager == null) {
+            return false;
+        }
+        manager.cancelAll();
+        return true;
+    }
+
+    public static boolean canPost(Context context) {
+        if (Build.VERSION.SDK_INT >= 33 &&
+            context.checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
+            return false;
+        }
+
+        NotificationManager manager = manager(context);
+        return manager != null && manager.areNotificationsEnabled();
+    }
+
+    public static boolean createChannel(Context context, JSONObject options) {
+        if (Build.VERSION.SDK_INT < 26) {
+            return true;
+        }
+
+        NotificationManager manager = manager(context);
+        if (manager == null) {
+            return false;
+        }
+
+        String id = options.optString("id", DEFAULT_CHANNEL_ID);
+        if (id.isEmpty()) {
+            return false;
+        }
+        String name = options.optString("name", id);
+        int importance = parseImportance(options);
+
+        NotificationChannel channel = new NotificationChannel(id, name, importance);
+        if (options.has("description")) {
+            channel.setDescription(options.optString("description", ""));
+        }
+        if (options.has("showBadge")) {
+            channel.setShowBadge(options.optBoolean("showBadge", true));
+        }
+        if (options.has("sound")) {
+            String sound = options.optString("sound", "default");
+            if ("none".equals(sound)) {
+                channel.setSound(null, null);
+            } else {
+                Uri uri = resolveSound(sound);
+                AudioAttributes attributes = new AudioAttributes.Builder()
+                    .setUsage(AudioAttributes.USAGE_NOTIFICATION)
+                    .build();
+                channel.setSound(uri, attributes);
+            }
+        }
+
+        manager.createNotificationChannel(channel);
+        return true;
+    }
+
+    public static boolean post(Context context, JSONObject options) {
+        if (!canPost(context)) {
+            return false;
+        }
+
+        int id = options.optInt("id", -1);
+        if (id < 0) {
+            return false;
+        }
+
+        NotificationManager manager = manager(context);
+        if (manager == null) {
+            return false;
+        }
+
+        String channelId = options.optString("channel", DEFAULT_CHANNEL_ID);
+        if (channelId.isEmpty()) {
+            channelId = DEFAULT_CHANNEL_ID;
+        }
+
+        int importance = parseImportance(options);
+        if (Build.VERSION.SDK_INT >= 26 && manager.getNotificationChannel(channelId) == null) {
+            try {
+                JSONObject channelOptions = new JSONObject();
+                channelOptions.put("id", channelId);
+                channelOptions.put("name", options.optString("channelName", channelId));
+                channelOptions.put("importance", importance);
+                if (options.has("sound")) {
+                    channelOptions.put("sound", options.opt("sound"));
+                }
+                if (!createChannel(context, channelOptions)) {
+                    return false;
+                }
+            } catch (Exception ignored) {
+                return false;
+            }
+        }
+
+        Notification.Builder builder;
+        if (Build.VERSION.SDK_INT >= 26) {
+            builder = new Notification.Builder(context, channelId);
+        } else {
+            builder = new Notification.Builder(context);
+            builder.setPriority(priorityForImportance(importance));
+            String sound = options.optString("sound", "default");
+            if (!"none".equals(sound)) {
+                builder.setSound(resolveSound(sound));
+            }
+        }
+
+        int smallIcon = context.getApplicationInfo().icon;
+        if (smallIcon == 0) {
+            smallIcon = android.R.drawable.stat_notify_more;
+        }
+
+        String title = options.optString("title", "");
+        String text = options.optString("text", "");
+        builder.setSmallIcon(smallIcon)
+            .setContentTitle(title)
+            .setContentText(text)
+            .setAutoCancel(options.optBoolean("autoCancel", true))
+            .setOngoing(options.optBoolean("ongoing", false));
+
+        if (!text.isEmpty()) {
+            builder.setStyle(new Notification.BigTextStyle().bigText(text));
+        }
+        if (options.has("category")) {
+            builder.setCategory(options.optString("category", null));
+        }
+        if (options.has("group")) {
+            builder.setGroup(options.optString("group", null));
+        }
+        if (options.has("groupSummary")) {
+            builder.setGroupSummary(options.optBoolean("groupSummary", false));
+        }
+        if (options.has("when")) {
+            builder.setWhen(options.optLong("when", System.currentTimeMillis()));
+        }
+
+        Intent launchIntent = context.getPackageManager().getLaunchIntentForPackage(context.getPackageName());
+        if (launchIntent != null) {
+            launchIntent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_SINGLE_TOP);
+            PendingIntent contentIntent = PendingIntent.getActivity(
+                context,
+                id,
+                launchIntent,
+                PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE
+            );
+            builder.setContentIntent(contentIntent);
+        }
+
+        manager.notify(id, builder.build());
+        return true;
+    }
+
+    private static NotificationManager manager(Context context) {
+        return (NotificationManager) context.getSystemService(Context.NOTIFICATION_SERVICE);
+    }
+
+    private static Uri resolveSound(String sound) {
+        if (sound == null || sound.isEmpty() || "default".equals(sound)) {
+            return RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION);
+        }
+        return Uri.parse(sound);
+    }
+
+    private static int parseImportance(JSONObject options) {
+        Object value = options.opt("importance");
+        if (value instanceof Number) {
+            int importance = ((Number) value).intValue();
+            if (importance < NotificationManager.IMPORTANCE_NONE) {
+                return NotificationManager.IMPORTANCE_NONE;
+            }
+            if (importance > NotificationManager.IMPORTANCE_HIGH) {
+                return NotificationManager.IMPORTANCE_HIGH;
+            }
+            return importance;
+        }
+
+        String name = options.optString("importance", "default");
+        switch (name) {
+            case "none":
+                return NotificationManager.IMPORTANCE_NONE;
+            case "min":
+                return NotificationManager.IMPORTANCE_MIN;
+            case "low":
+                return NotificationManager.IMPORTANCE_LOW;
+            case "high":
+                return NotificationManager.IMPORTANCE_HIGH;
+            case "default":
+            default:
+                return NotificationManager.IMPORTANCE_DEFAULT;
+        }
+    }
+
+    private static int priorityForImportance(int importance) {
+        if (importance >= NotificationManager.IMPORTANCE_HIGH) {
+            return Notification.PRIORITY_HIGH;
+        }
+        if (importance >= NotificationManager.IMPORTANCE_DEFAULT) {
+            return Notification.PRIORITY_DEFAULT;
+        }
+        if (importance >= NotificationManager.IMPORTANCE_LOW) {
+            return Notification.PRIORITY_LOW;
+        }
+        return Notification.PRIORITY_MIN;
+    }
+}

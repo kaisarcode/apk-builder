@@ -1,0 +1,18 @@
+package @PACKAGE_NAME@;
+
+import android.content.BroadcastReceiver;
+import android.content.Context;
+import android.content.Intent;
+
+public class AlarmRestoreReceiver extends BroadcastReceiver {
+    private static final String EXACT_ALARM_ACCESS_CHANGED =
+        "android.app.action.SCHEDULE_EXACT_ALARM_PERMISSION_STATE_CHANGED";
+
+    @Override
+    public void onReceive(Context context, Intent intent) {
+        String action = intent.getAction();
+        if (Intent.ACTION_BOOT_COMPLETED.equals(action) || EXACT_ALARM_ACCESS_CHANGED.equals(action)) {
+            AlarmBridge.restoreAll(context);
+        }
+    }
+}

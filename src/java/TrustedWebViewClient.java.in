@@ -9,9 +9,26 @@ import android.webkit.WebViewClient;
 
 public class TrustedWebViewClient extends WebViewClient {
     private static final String NATIVE_BRIDGE_SCRIPT =
-        "window.NativeBridge={exec:function(args){return window.AndroidBridge.exec(JSON.stringify(args));},"
+        "window.NativeBridge={"
+        + "exec:function(args){return window.AndroidBridge.exec(JSON.stringify(args));},"
+        + "Android:{"
         + "showToast:function(message){return window.AndroidBridge.showToast(message);},"
-        + "isOnline:function(){return window.AndroidBridge.isOnline();}};";
+        + "isOnline:function(){return window.AndroidBridge.isOnline();},"
+        + "permissions:{"
+        + "has:function(name){return window.AndroidBridge.permissionHas(name);},"
+        + "request:function(name){return window.AndroidBridge.permissionRequest(name);}},"
+        + "notifications:{"
+        + "canPost:function(){return window.AndroidBridge.notificationCanPost();},"
+        + "createChannel:function(options){return window.AndroidBridge.notificationCreateChannel(JSON.stringify(options||{}));},"
+        + "post:function(options){return window.AndroidBridge.notificationPost(JSON.stringify(options||{}));},"
+        + "cancel:function(id){return window.AndroidBridge.notificationCancel(id);},"
+        + "cancelAll:function(){return window.AndroidBridge.notificationCancelAll();}},"
+        + "alarms:{"
+        + "canScheduleExact:function(){return window.AndroidBridge.alarmCanScheduleExact();},"
+        + "schedule:function(options){return window.AndroidBridge.alarmSchedule(JSON.stringify(options||{}));},"
+        + "cancel:function(id){return window.AndroidBridge.alarmCancel(id);},"
+        + "cancelAll:function(){return window.AndroidBridge.alarmCancelAll();}}"
+        + "}};";
     private final Context context;
     private final String[] trustedOrigins;
     private final JSBridge bridge;

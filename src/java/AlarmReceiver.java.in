@@ -1,0 +1,34 @@
+package @PACKAGE_NAME@;
+
+import android.content.BroadcastReceiver;
+import android.content.Context;
+import android.content.Intent;
+import org.json.JSONObject;
+
+public class AlarmReceiver extends BroadcastReceiver {
+    @Override
+    public void onReceive(Context context, Intent intent) {
+        int id = intent.getIntExtra(AlarmBridge.EXTRA_ALARM_ID, -1);
+        if (id < 0) {
+            return;
+        }
+
+        JSONObject alarm = AlarmBridge.consume(context, id);
+        if (alarm == null) {
+            return;
+        }
+
+        JSONObject action = alarm.optJSONObject("action");
+        if (action == null || !"notification".equals(action.optString("type", ""))) {
+            return;
+        }
+
+        try {
+            if (!action.has("id")) {
+                action.put("id", id);
+            }
+            NotificationBridge.post(context, action);
+        } catch (Exception ignored) {
+        }
+    }
+}

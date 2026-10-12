@@ -13,6 +13,7 @@ APK_FILE="$WORK_DIR/bin/test.apk"
 FINAL_APK="$TEST_DIR/test.apk"
 EXEC_ARM64="$TEST_DIR/fixtures/arm64-v8a/kcapk-test-exec"
 EXEC_X86_64="$TEST_DIR/fixtures/x86_64/kcapk-test-exec"
+GENERATED_JAVA="$WORK_DIR/src/main/java/com/kaisarcode/kcapk/test"
 
 # Removes the temporary working directory.
 # @return None.
@@ -37,6 +38,19 @@ else
     cat "$BUILD_LOG" >&2
     exit 1
 fi
+
+grep -q 'Android:{' "$GENERATED_JAVA/TrustedWebViewClient.java" || {
+    echo "Error: NativeBridge.Android namespace was not generated." >&2
+    exit 1
+}
+grep -q 'android.permission.POST_NOTIFICATIONS' "$WORK_DIR/AndroidManifest.xml" || {
+    echo "Error: notification permission was not generated." >&2
+    exit 1
+}
+grep -q 'AlarmReceiver' "$WORK_DIR/AndroidManifest.xml" || {
+    echo "Error: alarm receiver was not generated." >&2
+    exit 1
+}
 
 unzip -l "$APK_FILE" | grep -q 'lib/arm64-v8a/libexec_kcapk_test_exec.so' || {
     echo "Error: arm64-v8a executable was not packaged in the APK." >&2

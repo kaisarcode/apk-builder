@@ -16,11 +16,17 @@ public class JSBridge {
     private static final String[] EXECUTABLE_NAMES = { @EXECUTABLE_NAMES@ };
     private final Context context;
     private final String[] trustedOrigins;
+    private final PermissionBridge permissionBridge;
+    private final NotificationBridge notificationBridge;
+    private final AlarmBridge alarmBridge;
     private volatile boolean bridgeAllowed;
 
     public JSBridge(Context context, String[] trustedOrigins) {
         this.context = context;
         this.trustedOrigins = trustedOrigins;
+        this.permissionBridge = new PermissionBridge(context);
+        this.notificationBridge = new NotificationBridge(context);
+        this.alarmBridge = new AlarmBridge(context);
     }
 
     public static boolean isTrustedUrl(String url, String[] trustedOrigins) {
@@ -177,5 +183,60 @@ public class JSBridge {
             return netInfo != null && netInfo.isConnected();
         }
         return false;
+    }
+
+    @JavascriptInterface
+    public boolean permissionHas(String name) {
+        return canUseBridge() && permissionBridge.has(name);
+    }
+
+    @JavascriptInterface
+    public boolean permissionRequest(String name) {
+        return canUseBridge() && permissionBridge.request(name);
+    }
+
+    @JavascriptInterface
+    public boolean notificationCanPost() {
+        return canUseBridge() && notificationBridge.canPost();
+    }
+
+    @JavascriptInterface
+    public boolean notificationCreateChannel(String json) {
+        return canUseBridge() && notificationBridge.createChannel(json);
+    }
+
+    @JavascriptInterface
+    public boolean notificationPost(String json) {
+        return canUseBridge() && notificationBridge.post(json);
+    }
+
+    @JavascriptInterface
+    public boolean notificationCancel(int id) {
+        return canUseBridge() && notificationBridge.cancel(id);
+    }
+
+    @JavascriptInterface
+    public boolean notificationCancelAll() {
+        return canUseBridge() && notificationBridge.cancelAll();
+    }
+
+    @JavascriptInterface
+    public boolean alarmCanScheduleExact() {
+        return canUseBridge() && alarmBridge.canScheduleExact();
+    }
+
+    @JavascriptInterface
+    public boolean alarmSchedule(String json) {
+        return canUseBridge() && alarmBridge.schedule(json);
+    }
+
+    @JavascriptInterface
+    public boolean alarmCancel(int id) {
+        return canUseBridge() && alarmBridge.cancel(id);
+    }
+
+    @JavascriptInterface
+    public boolean alarmCancelAll() {
+        return canUseBridge() && alarmBridge.cancelAll();
     }
 }

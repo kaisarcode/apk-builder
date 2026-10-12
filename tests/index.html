@@ -19,6 +19,7 @@
             color: #f2f2f2;
         }
         button {
+            margin: 0 0.5rem 0.5rem 0;
             padding: 0.75rem 1rem;
             border: 1px solid #555;
             border-radius: 0.5rem;
@@ -34,11 +35,21 @@
     <h1>KCAPK Test</h1>
     <p>If you can read this, the packaged local WebView app was built successfully.</p>
     <button id="run-exec">Run packaged executable</button>
+    <button id="show-toast">Show Android toast</button>
+    <button id="check-online">Check Android network state</button>
     <pre id="exec-output"></pre>
+    <pre id="android-output"></pre>
     <script>
         document.getElementById("run-exec").addEventListener("click", function () {
             var output = NativeBridge.exec(["kcapk-test-exec"]);
             document.getElementById("exec-output").textContent = output;
+        });
+        document.getElementById("show-toast").addEventListener("click", function () {
+            NativeBridge.Android.showToast("NativeBridge.Android.showToast works");
+        });
+        document.getElementById("check-online").addEventListener("click", function () {
+            document.getElementById("android-output").textContent =
+                "Online: " + NativeBridge.Android.isOnline();
         });
     </script>
 </body>

@@ -1,0 +1,189 @@
+package @PACKAGE_NAME@;
+
+import android.app.AlarmManager;
+import android.app.PendingIntent;
+import android.content.Context;
+import android.content.Intent;
+import android.content.SharedPreferences;
+import android.os.Build;
+import java.util.Map;
+import org.json.JSONObject;
+
+public class AlarmBridge {
+    private static final String PREFS_NAME = "kcapk.android.alarms";
+    static final String EXTRA_ALARM_ID = "kcapk.alarm.id";
+    private final Context context;
+
+    public AlarmBridge(Context context) {
+        this.context = context;
+    }
+
+    public boolean canScheduleExact() {
+        return canScheduleExact(context);
+    }
+
+    public boolean schedule(String json) {
+        try {
+            return schedule(context, new JSONObject(json), true);
+        } catch (Exception ignored) {
+            return false;
+        }
+    }
+
+    public boolean cancel(int id) {
+        return cancel(context, id, true);
+    }
+
+    public boolean cancelAll() {
+        SharedPreferences preferences = preferences(context);
+        Map<String, ?> alarms = preferences.getAll();
+        boolean success = true;
+
+        for (String key : alarms.keySet()) {
+            try {
+                int id = Integer.parseInt(key);
+                if (!cancel(context, id, false)) {
+                    success = false;
+                }
+            } catch (NumberFormatException ignored) {
+                success = false;
+            }
+        }
+        preferences.edit().clear().commit();
+        return success;
+    }
+
+    static boolean canScheduleExact(Context context) {
+        if (Build.VERSION.SDK_INT < 31) {
+            return true;
+        }
+
+        AlarmManager manager = manager(context);
+        return manager != null && manager.canScheduleExactAlarms();
+    }
+
+    static boolean schedule(Context context, JSONObject options, boolean persist) {
+        int id = options.optInt("id", -1);
+        long at = options.optLong("at", -1L);
+        JSONObject action = options.optJSONObject("action");
+        if (id < 0 || at < 0L || action == null || !"notification".equals(action.optString("type", ""))) {
+            return false;
+        }
+
+        boolean exact = options.optBoolean("exact", false);
+        boolean allowWhileIdle = options.optBoolean("allowWhileIdle", exact);
+        if (exact && !canScheduleExact(context)) {
+            return false;
+        }
+
+        AlarmManager manager = manager(context);
+        if (manager == null) {
+            return false;
+        }
+
+        PendingIntent pendingIntent = pendingIntent(context, id, false);
+        try {
+            if (exact) {
+                if (allowWhileIdle) {
+                    manager.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, at, pendingIntent);
+                } else {
+                    manager.setExact(AlarmManager.RTC_WAKEUP, at, pendingIntent);
+                }
+            } else if (allowWhileIdle) {
+                manager.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, at, pendingIntent);
+            } else {
+                manager.set(AlarmManager.RTC_WAKEUP, at, pendingIntent);
+            }
+        } catch (SecurityException ignored) {
+            return false;
+        }
+
+        if (persist) {
+            preferences(context).edit().putString(Integer.toString(id), options.toString()).commit();
+        }
+        return true;
+    }
+
+    static boolean cancel(Context context, int id, boolean removeStored) {
+        if (id < 0) {
+            return false;
+        }
+
+        AlarmManager manager = manager(context);
+        if (manager == null) {
+            return false;
+        }
+
+        PendingIntent pendingIntent = pendingIntent(context, id, true);
+        if (pendingIntent != null) {
+            manager.cancel(pendingIntent);
+            pendingIntent.cancel();
+        }
+        if (removeStored) {
+            preferences(context).edit().remove(Integer.toString(id)).commit();
+        }
+        return true;
+    }
+
+    static JSONObject consume(Context context, int id) {
+        SharedPreferences preferences = preferences(context);
+        String key = Integer.toString(id);
+        String json = preferences.getString(key, null);
+        preferences.edit().remove(key).commit();
+        if (json == null) {
+            return null;
+        }
+
+        try {
+            return new JSONObject(json);
+        } catch (Exception ignored) {
+            return null;
+        }
+    }
+
+    static void restoreAll(Context context) {
+        SharedPreferences preferences = preferences(context);
+        Map<String, ?> alarms = preferences.getAll();
+        long now = System.currentTimeMillis();
+
+        for (Map.Entry<String, ?> entry : alarms.entrySet()) {
+            Object value = entry.getValue();
+            if (!(value instanceof String)) {
+                preferences.edit().remove(entry.getKey()).apply();
+                continue;
+            }
+
+            try {
+                JSONObject options = new JSONObject((String) value);
+                long at = options.optLong("at", -1L);
+                if (at < now) {
+                    preferences.edit().remove(entry.getKey()).apply();
+                    continue;
+                }
+                schedule(context, options, false);
+            } catch (Exception ignored) {
+                preferences.edit().remove(entry.getKey()).apply();
+            }
+        }
+    }
+
+    private static AlarmManager manager(Context context) {
+        return (AlarmManager) context.getSystemService(Context.ALARM_SERVICE);
+    }
+
+    private static SharedPreferences preferences(Context context) {
+        return context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE);
+    }
+
+    private static PendingIntent pendingIntent(Context context, int id, boolean noCreate) {
+        Intent intent = new Intent(context, AlarmReceiver.class);
+        intent.putExtra(EXTRA_ALARM_ID, id);
+        int flags = PendingIntent.FLAG_IMMUTABLE;
+        if (noCreate) {
+            flags |= PendingIntent.FLAG_NO_CREATE;
+        } else {
+            flags |= PendingIntent.FLAG_UPDATE_CURRENT;
+        }
+        return PendingIntent.getBroadcast(context, id, intent, flags);
+    }
+}
