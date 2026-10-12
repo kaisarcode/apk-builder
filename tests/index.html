@@ -2,79 +2,324 @@
 <html lang="en">
 <head>
     <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
     <meta name="color-scheme" content="dark">
     <title>KCAPK Test</title>
     <style>
         :root {
             color-scheme: dark;
-            background: #101010;
-            color: #f2f2f2;
-            font-family: sans-serif;
+            font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+            background: #0b0d10;
+            color: #f5f7fa;
+            --surface: #15191f;
+            --surface-strong: #1b2027;
+            --border: #282e37;
+            --text-muted: #99a3b2;
+            --accent: #8ab4f8;
+            --accent-surface: #1b3557;
+            --success: #81c995;
+            --success-surface: #183526;
         }
+
+        * {
+            box-sizing: border-box;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        html,
+        body {
+            min-height: 100%;
+        }
+
         body {
             margin: 0;
-            padding: 2rem;
-            background: #101010;
-            color: #f2f2f2;
+            background:
+                radial-gradient(circle at top right, rgba(138, 180, 248, 0.10), transparent 28rem),
+                #0b0d10;
+            color: #f5f7fa;
         }
+
+        .app {
+            width: min(100%, 680px);
+            margin: 0 auto;
+            padding:
+                max(24px, env(safe-area-inset-top))
+                20px
+                max(32px, env(safe-area-inset-bottom));
+        }
+
+        .hero {
+            padding: 10px 4px 28px;
+        }
+
+        .eyebrow {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 12px;
+            padding: 7px 11px;
+            border: 1px solid var(--border);
+            border-radius: 999px;
+            background: rgba(21, 25, 31, 0.82);
+            color: var(--success);
+            font-size: 12px;
+            font-weight: 700;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+        }
+
+        .eyebrow::before {
+            content: "";
+            width: 7px;
+            height: 7px;
+            border-radius: 50%;
+            background: var(--success);
+            box-shadow: 0 0 12px rgba(129, 201, 149, 0.65);
+        }
+
+        h1 {
+            margin: 0;
+            font-size: clamp(32px, 8vw, 48px);
+            line-height: 1;
+            letter-spacing: -0.04em;
+        }
+
+        .subtitle {
+            margin: 12px 0 0;
+            max-width: 34rem;
+            color: var(--text-muted);
+            font-size: 15px;
+            line-height: 1.55;
+        }
+
+        .section {
+            margin-top: 16px;
+            padding: 18px;
+            border: 1px solid var(--border);
+            border-radius: 20px;
+            background: rgba(21, 25, 31, 0.90);
+            box-shadow: 0 16px 40px rgba(0, 0, 0, 0.20);
+        }
+
+        .section-header {
+            margin-bottom: 14px;
+        }
+
+        .section-title {
+            margin: 0;
+            font-size: 16px;
+            font-weight: 700;
+        }
+
+        .section-description {
+            margin: 5px 0 0;
+            color: var(--text-muted);
+            font-size: 13px;
+            line-height: 1.45;
+        }
+
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 10px;
+        }
+
         button {
-            margin: 0 0.5rem 0.5rem 0;
-            padding: 0.75rem 1rem;
-            border: 1px solid #555;
-            border-radius: 0.5rem;
-            background: #242424;
-            color: #f2f2f2;
+            position: relative;
+            min-height: 74px;
+            padding: 14px;
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            background: var(--surface-strong);
+            color: #f5f7fa;
+            font: inherit;
+            text-align: left;
+            cursor: pointer;
+            transition:
+                transform 90ms ease,
+                border-color 120ms ease,
+                background 120ms ease;
         }
-        pre {
-            white-space: pre-wrap;
+
+        button:active {
+            transform: scale(0.975);
+            background: #212831;
+        }
+
+        button.primary {
+            border-color: #31557d;
+            background: var(--accent-surface);
+        }
+
+        button.active {
+            border-color: #2f6b49;
+            background: var(--success-surface);
+        }
+
+        .button-title {
+            display: block;
+            font-size: 14px;
+            font-weight: 700;
+            line-height: 1.25;
+        }
+
+        .button-detail {
+            display: block;
+            margin-top: 6px;
+            color: var(--text-muted);
+            font-size: 11px;
+            line-height: 1.3;
+        }
+
+        button.primary .button-detail {
+            color: #b9d2f5;
+        }
+
+        button.active .button-detail {
+            color: #a8d9b7;
+        }
+
+        .wide {
+            grid-column: 1 / -1;
+        }
+
+        .footer {
+            padding: 24px 4px 0;
+            color: #687382;
+            font-size: 12px;
+            text-align: center;
+        }
+
+        @media (max-width: 420px) {
+            .grid {
+                grid-template-columns: 1fr;
+            }
+
+            .wide {
+                grid-column: auto;
+            }
         }
     </style>
 </head>
 <body>
-    <h1>KCAPK Test</h1>
-    <p>If you can read this, the packaged local WebView app was built successfully.</p>
-    <button id="run-exec">Run packaged executable</button>
-    <button id="show-toast">Show Android toast</button>
-    <button id="check-online">Check Android network state</button>
-    <button id="haptic-click">Haptic click</button>
-    <button id="clipboard-test">Clipboard round-trip</button>
-    <button id="share-test">Open Android Sharesheet</button>
-    <button id="screen-on">Keep screen on</button>
-    <button id="screen-normal">Release screen</button>
-    <pre id="exec-output"></pre>
-    <pre id="android-output"></pre>
+    <main class="app">
+        <header class="hero">
+            <div class="eyebrow">NativeBridge ready</div>
+            <h1>KCAPK Test</h1>
+            <p class="subtitle">
+                Native Android bridge controls exposed to packaged WebView apps.
+                Every control provides haptic feedback.
+            </p>
+        </header>
+
+        <section class="section">
+            <div class="section-header">
+                <h2 class="section-title">Core</h2>
+                <p class="section-description">Basic KCAPK and Android bridge operations.</p>
+            </div>
+            <div class="grid">
+                <button id="run-exec" class="primary wide" type="button">
+                    <span class="button-title">Run packaged executable</span>
+                    <span class="button-detail">NativeBridge.exec()</span>
+                </button>
+                <button id="check-online" type="button">
+                    <span class="button-title">Network state</span>
+                    <span class="button-detail">Check current connectivity</span>
+                </button>
+                <button id="vibrate" type="button">
+                    <span class="button-title">Vibrate</span>
+                    <span class="button-detail">200 ms vibration</span>
+                </button>
+            </div>
+        </section>
+
+        <section class="section">
+            <div class="section-header">
+                <h2 class="section-title">System</h2>
+                <p class="section-description">Useful Android platform actions.</p>
+            </div>
+            <div class="grid">
+                <button id="clipboard-test" type="button">
+                    <span class="button-title">Clipboard</span>
+                    <span class="button-detail">Write and read text</span>
+                </button>
+                <button id="share-test" type="button">
+                    <span class="button-title">Share</span>
+                    <span class="button-detail">Open Android Sharesheet</span>
+                </button>
+                <button id="keep-screen" class="wide" type="button" aria-pressed="false">
+                    <span class="button-title">Keep screen · OFF</span>
+                    <span class="button-detail">Allow normal screen timeout</span>
+                </button>
+            </div>
+        </section>
+
+        <div class="footer">KCAPK · Android WebView App Builder</div>
+    </main>
+
     <script>
-        var androidOutput = document.getElementById("android-output");
+        var keepScreenEnabled = false;
+        var keepScreenButton = document.getElementById("keep-screen");
+
+        function toast(message) {
+            NativeBridge.Android.showToast(String(message));
+        }
+
+        document.addEventListener("click", function (event) {
+            if (event.target.closest("button")) {
+                NativeBridge.Android.haptics.effect("click");
+            }
+        });
 
         document.getElementById("run-exec").addEventListener("click", function () {
             var output = NativeBridge.exec(["kcapk-test-exec"]);
-            document.getElementById("exec-output").textContent = output;
+            toast(output || "Executable completed");
         });
-        document.getElementById("show-toast").addEventListener("click", function () {
-            NativeBridge.Android.showToast("NativeBridge.Android.showToast works");
-        });
+
         document.getElementById("check-online").addEventListener("click", function () {
-            androidOutput.textContent = "Online: " + NativeBridge.Android.isOnline();
+            toast(NativeBridge.Android.isOnline() ? "Network: online" : "Network: offline");
         });
-        document.getElementById("haptic-click").addEventListener("click", function () {
-            androidOutput.textContent = "Haptic: " + NativeBridge.Android.haptics.effect("click");
+
+        document.getElementById("vibrate").addEventListener("click", function () {
+            var ok = NativeBridge.Android.haptics.vibrate(200);
+            toast(ok ? "Vibrate: 200 ms" : "Vibration unavailable");
         });
+
         document.getElementById("clipboard-test").addEventListener("click", function () {
-            NativeBridge.Android.clipboard.set("KCAPK clipboard test");
-            androidOutput.textContent = "Clipboard: " + NativeBridge.Android.clipboard.get();
+            var value = "KCAPK clipboard test";
+            var written = NativeBridge.Android.clipboard.set(value);
+            var result = NativeBridge.Android.clipboard.get();
+            toast(written && result === value ? "Clipboard round-trip OK" : "Clipboard test failed");
         });
+
         document.getElementById("share-test").addEventListener("click", function () {
-            NativeBridge.Android.intents.share({
+            var opened = NativeBridge.Android.intents.share({
                 text: "KCAPK NativeBridge.Android.intents.share works",
                 chooserTitle: "Share KCAPK test"
             });
+            if (!opened) {
+                toast("Unable to open Sharesheet");
+            }
         });
-        document.getElementById("screen-on").addEventListener("click", function () {
-            androidOutput.textContent = "Keep screen on: " + NativeBridge.Android.screen.keepOn(true);
-        });
-        document.getElementById("screen-normal").addEventListener("click", function () {
-            androidOutput.textContent = "Release screen: " + NativeBridge.Android.screen.keepOn(false);
+
+        keepScreenButton.addEventListener("click", function () {
+            var nextValue = !keepScreenEnabled;
+            var changed = NativeBridge.Android.screen.keepOn(nextValue);
+
+            if (!changed) {
+                toast("Unable to change screen state");
+                return;
+            }
+
+            keepScreenEnabled = nextValue;
+            keepScreenButton.classList.toggle("active", keepScreenEnabled);
+            keepScreenButton.setAttribute("aria-pressed", keepScreenEnabled ? "true" : "false");
+            keepScreenButton.querySelector(".button-title").textContent =
+                "Keep screen · " + (keepScreenEnabled ? "ON" : "OFF");
+            keepScreenButton.querySelector(".button-detail").textContent = keepScreenEnabled
+                ? "Screen timeout disabled"
+                : "Allow normal screen timeout";
+            toast("Keep screen: " + (keepScreenEnabled ? "ON" : "OFF"));
         });
     </script>
 </body>
