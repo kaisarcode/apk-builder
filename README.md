@@ -167,7 +167,7 @@ PROJECT_NAME="myapp"
 OUTPUT_PATH="./build/myapp"
 PACKAGE_NAME="com.example.myapp"
 WEBVIEW_URL="https://example.com/"
-ICON_SOURCE_FILE="./icon.svg"
+ICON_SOURCE_FILE="./src/assets/icon.svg"
 ICON_BACKGROUND="#1a1a1a"
 BACKGROUND="#101010"
 TRUSTED_ORIGINS=""
@@ -316,6 +316,8 @@ NativeBridge.exec(["tool-b", "status"]);
 `--icon` / `ICON_SOURCE_FILE` accepts:
 - A local image file (SVG, PNG, etc.)
 - An external URL such as `https://example.com/icon.png`
+
+The bundled default icon lives at `src/assets/icon.svg`.
 
 ImageMagick (**convert**) is used to generate icons in all Android densities automatically. On Android 8+ the launcher uses adaptive icons; `--icon-background` / `ICON_BACKGROUND` sets the adaptive icon background color, while raster icons remain the fallback for older Android versions. If the input is an SVG and *rsvg-convert* is available, it is used first for high-quality rasterization.
 
