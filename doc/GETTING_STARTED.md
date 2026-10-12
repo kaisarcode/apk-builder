@@ -82,16 +82,6 @@ The same builder can point directly at a remote application:
 
 Remote content should be combined with an explicit trusted-origin policy when additional origins need access to `NativeBridge`. See [WebView and trusted origins](WEBVIEW.md).
 
-## Next steps
+## Next step
 
-Read the documentation in this order:
-
-1. [Architecture](ARCHITECTURE.md)
-2. [Building](BUILDING.md)
-3. [Configuration](CONFIGURATION.md)
-4. [WebView and trusted origins](WEBVIEW.md)
-5. [NativeBridge](NATIVE_BRIDGE.md)
-6. [Android APIs](ANDROID_APIS.md)
-7. [External binaries](EXTERNAL_BINARIES.md)
-8. [Release builds](RELEASES.md)
-9. [Testing](TESTING.md)
+Continue with [Architecture](ARCHITECTURE.md).
