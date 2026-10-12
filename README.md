@@ -307,6 +307,26 @@ NativeBridge.Android.notifications.cancelAll();
 NativeBridge.Android.notifications.canPost();
 ```
 
+`post()` also supports `subText`, `ongoing`, `onlyAlertOnce`, `number`, `timeout`, `group`, `groupSummary`, `category`, `when`, `autoCancel`, and progress state:
+
+```js
+NativeBridge.Android.notifications.post({
+    id: 20,
+    channel: "sync",
+    title: "Synchronizing",
+    text: "23 files",
+    ongoing: true,
+    onlyAlertOnce: true,
+    progress: {
+        max: 100,
+        value: 42,
+        indeterminate: false
+    }
+});
+```
+
+`timeout` is expressed in milliseconds and is applied on Android 8.0 and newer.
+
 On Android 8.0 and newer, importance and sound are channel properties. Once Android creates a channel, the user has final control over those settings and the channel behavior cannot be freely changed by reposting notifications.
 
 Alarms are exposed through `NativeBridge.Android.alarms`. Alarm timestamps use Unix epoch milliseconds. Alarm actions are native so they can run when the WebView is not alive; the first supported action type posts a notification:
@@ -334,6 +354,62 @@ Scheduled alarms are persisted by the generated app and future alarms are restor
 NativeBridge.Android.alarms.cancel(10);
 NativeBridge.Android.alarms.cancelAll();
 ```
+
+Haptics are exposed through `NativeBridge.Android.haptics`:
+
+```js
+NativeBridge.Android.haptics.hasVibrator();
+NativeBridge.Android.haptics.vibrate(200);
+NativeBridge.Android.haptics.effect("click");
+NativeBridge.Android.haptics.cancel();
+```
+
+The predefined effect names are `click`, `doubleClick`, `tick`, and `heavyClick`. KCAPK falls back to a short vibration on Android versions that do not provide predefined effects.
+
+Common Android intents are exposed through `NativeBridge.Android.intents`:
+
+```js
+NativeBridge.Android.intents.share({
+    text: "Hello",
+    subject: "Optional subject",
+    title: "Optional content title",
+    chooserTitle: "Share with"
+});
+
+NativeBridge.Android.intents.openUrl("https://example.com");
+NativeBridge.Android.intents.openAppSettings();
+```
+
+`share()` uses the Android Sharesheet. `openUrl()` accepts HTTP and HTTPS URLs.
+
+System-bar controls are exposed through `NativeBridge.Android.systemUI`:
+
+```js
+NativeBridge.Android.systemUI.statusBar({ icons: "light" });
+NativeBridge.Android.systemUI.navigationBar({ icons: "dark" });
+NativeBridge.Android.systemUI.hideBars();
+NativeBridge.Android.systemUI.showBars();
+```
+
+`icons` controls the foreground icon appearance. On modern edge-to-edge Android versions, the visible bar background is generally the application content behind the system bars rather than a separately painted bar color.
+
+Clipboard access is exposed through `NativeBridge.Android.clipboard`:
+
+```js
+NativeBridge.Android.clipboard.set("text");
+NativeBridge.Android.clipboard.get();
+NativeBridge.Android.clipboard.hasText();
+NativeBridge.Android.clipboard.clear();
+```
+
+Screen wake behavior is exposed through `NativeBridge.Android.screen`:
+
+```js
+NativeBridge.Android.screen.keepOn(true);
+NativeBridge.Android.screen.keepOn(false);
+```
+
+The keep-on flag applies while the generated Activity is visible; it does not create a background wake lock.
 
 ### Multi-ABI executables
 
