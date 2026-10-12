@@ -521,3 +521,7 @@ New Android integrations should follow the same principles:
 - avoid arbitrary reflection or unrestricted access to Android classes,
 - document permissions and Android-version behavior explicitly,
 - add asynchronous capabilities only through a consistent future Promise/request mechanism.
+
+## Next step
+
+Continue with [External binaries](EXTERNAL_BINARIES.md).
