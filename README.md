@@ -408,7 +408,7 @@ keytool -genkeypair -v \
 - Generates icons automatically for all densities.
 - Can package explicitly selected native Android executables.
 - Uses a dark startup background by default to avoid bright flashes before WebView content renders.
-- Compatible with Android SDK 24-34.
+- Compatible with Android SDK 24-36.
 
 ---
 
