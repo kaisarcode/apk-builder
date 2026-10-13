@@ -2,7 +2,7 @@
 
 KCAPK builds Android applications directly from the command line, mainly for WebView-based projects. A generated app can load packaged local web content or a remote web application, and it can optionally expose selected Android functionality through `NativeBridge`.
 
-## 1. Clone KCAPK
+## Clone KCAPK
 
 ```sh
 git clone https://github.com/kaisarcode/kcapk.git
@@ -14,7 +14,7 @@ KCAPK requires a Java JDK, Android SDK build tools, ImageMagick, and standard co
 
 For complete requirements and platform notes, see [Building](BUILDING.md).
 
-## 2. Create a web application
+## Create a web application
 
 A local application can be as small as:
 
@@ -36,7 +36,7 @@ Save it as `web/index.html`.
 
 When a local HTML file is used as the WebView entry point, KCAPK packages the complete containing directory. CSS, JavaScript, images, fonts, and subdirectories next to the entry file are copied into the generated Android assets.
 
-## 3. Build the APK
+## Build the APK
 
 ```sh
 ./build.sh \
@@ -54,7 +54,7 @@ build/myapp/bin/myapp.apk
 
 The generated Android project is kept under `build/myapp/`, so it can be inspected after the build.
 
-## 4. Install the application
+## Install the application
 
 With Android Debug Bridge available and a device connected:
 
