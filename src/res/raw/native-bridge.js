@@ -1,3 +1,12 @@
+/**
+ * native-bridge.js
+ * Summary: JavaScript bridge for KCAPK WebView native communication.
+ *
+ * Author:  KaisarCode
+ * Website: https://kaisarcode.com
+ * License: https://www.gnu.org/licenses/gpl-3.0.html
+ */
+
 (function () {
     "use strict";
 
@@ -8,6 +17,14 @@
     var pending = Object.create(null);
     var nextRequestId = 1;
 
+    /**
+     * Creates a standardized error object for native bridge failures.
+     *
+     * @param {string} code - Error code identifier.
+     * @param {string} message - Human-readable error message.
+     * @param {Object} [details] - Additional error details.
+     * @return {Error} Configured error object.
+     */
     function makeError(code, message, details) {
         var error = new Error(message || "Native request failed");
         error.code = code || "NATIVE_ERROR";
@@ -23,6 +40,13 @@
         return error;
     }
 
+    /**
+     * Rejects all pending requests with the specified error.
+     *
+     * @param {string} code - Error code identifier.
+     * @param {string} message - Human-readable error message.
+     * @return {void}
+     */
     function rejectAll(code, message) {
         Object.keys(pending).forEach(function (id) {
             var request = pending[id];
@@ -31,6 +55,13 @@
         });
     }
 
+    /**
+     * Initiates an asynchronous native request with a starter function.
+     *
+     * @param {Function} starter - Function called with (requestId, generation)
+     * to start the request.
+     * @return {Promise} Promise resolved/rejected based on native response.
+     */
     function asyncRequest(starter) {
         return new Promise(function (resolve, reject) {
             var requestId = nextRequestId++;
@@ -63,6 +94,15 @@
         });
     }
 
+    /**
+     * Completes a pending request with the native response.
+     *
+     * @param {number} requestId - Identifier of the pending request.
+     * @param {number} generation - Generation number for page change detection.
+     * @param {boolean} success - Whether the native call succeeded.
+     * @param {string} [payloadJson] - JSON payload from native side.
+     * @return {void}
+     */
     function complete(requestId, generation, success, payloadJson) {
         var request = pending[requestId];
         if (!request || request.generation !== generation || api.__generation !== generation) {
