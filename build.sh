@@ -406,7 +406,7 @@ $PERMISSIONS
 EOF
 }
 
-# Generates optional Android share target intent filters for the manifest template.
+# Generates Android share target intent filters for the manifest template.
 # @return None.
 prepare_share_targets () {
     SHARE_TARGET_DECLARATIONS_FILE="$TEMP_ROOT_DIR/share_targets.xml"
@@ -415,10 +415,12 @@ prepare_share_targets () {
 
     [ -n "$SHARE_TARGETS" ] || return
 
-    printf '%s\n' '            <intent-filter>' >> "$SHARE_TARGET_DECLARATIONS_FILE"
-    printf '%s\n' '                <action android:name="android.intent.action.SEND" />' >> "$SHARE_TARGET_DECLARATIONS_FILE"
-    printf '%s\n' '                <action android:name="android.intent.action.SEND_MULTIPLE" />' >> "$SHARE_TARGET_DECLARATIONS_FILE"
-    printf '%s\n' '                <category android:name="android.intent.category.DEFAULT" />' >> "$SHARE_TARGET_DECLARATIONS_FILE"
+    {
+        printf '            <intent-filter>\n'
+        printf '                <action android:name="android.intent.action.SEND" />\n'
+        printf '                <action android:name="android.intent.action.SEND_MULTIPLE" />\n'
+        printf '                <category android:name="android.intent.category.DEFAULT" />\n'
+    } >> "$SHARE_TARGET_DECLARATIONS_FILE"
 
     while IFS= read -r MIME_TYPE; do
         [ -n "$MIME_TYPE" ] || continue
