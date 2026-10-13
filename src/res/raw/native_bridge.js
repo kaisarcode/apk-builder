@@ -270,6 +270,18 @@
                     return window.AndroidBridge.appsOpenHomeSettings();
                 }
             },
+            resources: {
+                describe: function (packageName, resourceId) {
+                    return asyncRequest(function (requestId, generation) {
+                        return window.AndroidBridge.resourceDescribe(
+                            requestId,
+                            generation,
+                            packageName,
+                            resourceId
+                        );
+                    });
+                }
+            },
             systemUI: {
                 statusBar: function (options) {
                     return window.AndroidBridge.systemUIStatusBar(JSON.stringify(options || {}));

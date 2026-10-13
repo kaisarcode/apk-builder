@@ -7,7 +7,6 @@ import android.content.pm.ActivityInfo;
 import android.content.pm.LauncherActivityInfo;
 import android.content.pm.LauncherApps;
 import android.content.pm.PackageManager;
-import android.content.res.Resources;
 import android.os.Process;
 import android.os.UserHandle;
 import android.provider.Settings;
@@ -208,29 +207,12 @@ public class AppBridge {
     private JSONObject queryIconResource(String packageName, String activityName) throws Exception {
         LauncherActivityInfo launcherActivity = findLauncherActivity(packageName, activityName);
         ComponentName component = launcherActivity.getComponentName();
-        PackageManager packageManager = context.getPackageManager();
-        ActivityInfo activityInfo = packageManager.getActivityInfo(component, 0);
-        int resourceId = activityInfo.getIconResource();
+        ActivityInfo activityInfo = context.getPackageManager().getActivityInfo(component, 0);
 
         JSONObject result = new JSONObject();
         result.put("packageName", component.getPackageName());
         result.put("activityName", component.getClassName());
-        result.put("resourceId", resourceId);
-
-        if (resourceId == 0) {
-            result.put("uri", JSONObject.NULL);
-            result.put("resourceType", JSONObject.NULL);
-            result.put("resourceName", JSONObject.NULL);
-            return result;
-        }
-
-        Resources resources = packageManager.getResourcesForApplication(component.getPackageName());
-        String resourceType = resources.getResourceTypeName(resourceId);
-        String resourceName = resources.getResourceEntryName(resourceId);
-
-        result.put("uri", "android.resource://" + component.getPackageName() + "/" + resourceId);
-        result.put("resourceType", resourceType);
-        result.put("resourceName", resourceName);
+        result.put("resourceId", activityInfo.getIconResource());
         return result;
     }
 

@@ -79,6 +79,10 @@ grep -q 'AndroidBridge.appsIcon' "$GENERATED_BRIDGE_JS" || {
     echo "Error: launcher app icon API was not generated as an async request." >&2
     exit 1
 }
+grep -q 'AndroidBridge.resourceDescribe' "$GENERATED_BRIDGE_JS" || {
+    echo "Error: Android resource descriptor API was not generated as an async request." >&2
+    exit 1
+}
 grep -q 'AndroidBridge.appsLaunch' "$GENERATED_BRIDGE_JS" || {
     echo "Error: launcher app launch API was not generated." >&2
     exit 1
@@ -91,13 +95,13 @@ grep -q 'intentConsumeShare' "$GENERATED_BRIDGE_JS" || {
     echo "Error: incoming share API was not generated." >&2
     exit 1
 }
-for NAMESPACE in haptics intents files apps systemUI clipboard screen; do
+for NAMESPACE in haptics intents files apps resources systemUI clipboard screen; do
     grep -q "$NAMESPACE:" "$GENERATED_BRIDGE_JS" || {
         echo "Error: NativeBridge.Android.$NAMESPACE namespace was not generated." >&2
         exit 1
     }
 done
-for CLASS in AsyncBridge ExecBridge HapticBridge IntentBridge FileBridge AppBridge SystemUIBridge ClipboardBridge ScreenBridge; do
+for CLASS in AsyncBridge ExecBridge HapticBridge IntentBridge FileBridge AppBridge ResourceBridge SystemUIBridge ClipboardBridge ScreenBridge; do
     [ -f "$GENERATED_JAVA/$CLASS.java" ] || {
         echo "Error: $CLASS.java was not generated." >&2
         exit 1
@@ -152,8 +156,24 @@ grep -q 'getIconResource' "$GENERATED_JAVA/AppBridge.java" || {
     echo "Error: launcher icon resource lookup was not generated." >&2
     exit 1
 }
-grep -q 'android.resource://' "$GENERATED_JAVA/AppBridge.java" || {
-    echo "Error: launcher icon resource URI was not generated." >&2
+if grep -q 'android.resource://' "$GENERATED_JAVA/AppBridge.java"; then
+    echo "Error: AppBridge should not expand resource metadata itself." >&2
+    exit 1
+fi
+grep -q 'getResourcesForApplication' "$GENERATED_JAVA/ResourceBridge.java" || {
+    echo "Error: generic Android resource lookup was not generated." >&2
+    exit 1
+}
+grep -q 'getResourceName' "$GENERATED_JAVA/ResourceBridge.java" || {
+    echo "Error: Android resource names were not generated." >&2
+    exit 1
+}
+grep -q 'android.resource://' "$GENERATED_JAVA/ResourceBridge.java" || {
+    echo "Error: generic Android resource URI was not generated." >&2
+    exit 1
+}
+grep -q 'assetPath' "$GENERATED_JAVA/ResourceBridge.java" || {
+    echo "Error: Android resource asset path metadata was not generated." >&2
     exit 1
 }
 grep -q 'startMainActivity' "$GENERATED_JAVA/AppBridge.java" || {

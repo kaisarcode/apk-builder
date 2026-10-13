@@ -454,6 +454,46 @@ A universal share target can be declared with `--share-target '*/*'`, though app
 
 See [Configuration](CONFIGURATION.md) for build-time share target declaration.
 
+## Resources
+
+Namespace:
+
+```js
+NativeBridge.Android.resources
+```
+
+KCAPK treats Android resources as general platform resources rather than assuming how application code will consume them.
+
+### Describe a resource
+
+```js
+var resource = await NativeBridge.Android.resources.describe(
+    packageName,
+    resourceId
+);
+```
+
+`describe()` returns Android metadata for a resource in an installed package:
+
+```js
+{
+    packageName: "com.example.app",
+    resourceId: 2131230890,
+    resourcePackage: "com.example.app",
+    resourceType: "mipmap",
+    resourceName: "ic_launcher",
+    resourceFullName: "com.example.app:mipmap/ic_launcher",
+    uri: "android.resource://com.example.app/2131230890",
+    valueType: 3,
+    density: 480,
+    assetPath: "res/mipmap-xxhdpi-v4/ic_launcher.png"
+}
+```
+
+`assetPath` is nullable. Android resources are compiled resources inside an APK; not every resource has a file-like `res/...` path.
+
+The `android.resource://` URI is the standard Android reference to a resource in an APK. KCAPK does not decode, rasterize, copy, or otherwise interpret the resource. The caller decides what to do with the returned metadata.
+
 ## Apps and launcher integration
 
 Namespace:
@@ -484,7 +524,7 @@ A package may expose more than one launcher activity, so applications should tre
 
 Icons are intentionally not included in `list()`.
 
-### Resolve an app icon resource
+### Get an app icon resource
 
 ```js
 var icon = await NativeBridge.Android.apps.icon(
@@ -493,24 +533,28 @@ var icon = await NativeBridge.Android.apps.icon(
 );
 ```
 
-`icon()` resolves the icon resource associated with the launcher activity. It returns a descriptor such as:
+`icon()` identifies the Android resource used as the launcher's icon. It returns only the app-specific reference:
 
 ```js
 {
     packageName: "com.example.calculator",
     activityName: "com.example.calculator.MainActivity",
-    resourceId: 2131230890,
-    uri: "android.resource://com.example.calculator/2131230890",
-    resourceType: "mipmap",
-    resourceName: "ic_launcher"
+    resourceId: 2131230890
 }
 ```
 
 `activityName` may be omitted to use the first launcher activity for the package.
 
-KCAPK does not rasterize, copy, encode, or otherwise transform the icon. Android's icon resource may itself resolve to a bitmap, vector drawable, adaptive icon, or another drawable resource. `uri` is `null` only when Android reports no concrete icon resource ID.
+To inspect that resource, use the generic resource API:
 
-The `android.resource://` URI references the resource inside the installed APK. The caller decides how or whether to consume that resource.
+```js
+var resource = await NativeBridge.Android.resources.describe(
+    icon.packageName,
+    icon.resourceId
+);
+```
+
+`apps.icon()` does not decide whether the icon is a bitmap, vector, adaptive icon, file, URI, or something to render. That belongs to Android resource handling and caller logic.
 
 ### Launch an app
 
@@ -551,7 +595,7 @@ NativeBridge.Android.apps.openHomeSettings();
 
 The user remains in control of which launcher is the default. Enabling the alias only makes the generated app eligible to be selected as Home.
 
-This makes it possible to implement the launcher UI itself entirely in HTML, CSS, and JavaScript while keeping app discovery, icon resource lookup, launching, and Home registration in the native Android layer.
+This makes it possible to implement the launcher UI itself entirely in HTML, CSS, and JavaScript while keeping app discovery, resource references, launching, and Home registration in the native Android layer.
 
 ## System UI
 

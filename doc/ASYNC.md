@@ -13,6 +13,10 @@ var icon = await NativeBridge.Android.apps.icon(
     apps[0].packageName,
     apps[0].activityName
 );
+var resource = await NativeBridge.Android.resources.describe(
+    icon.packageName,
+    icon.resourceId
+);
 ```
 
 ## Which methods are async
@@ -27,6 +31,7 @@ NativeBridge.Android.permissions.request(...)
 NativeBridge.Android.files.open(...)
 NativeBridge.Android.apps.list()
 NativeBridge.Android.apps.icon(...)
+NativeBridge.Android.resources.describe(...)
 ```
 
 Immediate operations remain synchronous. KCAPK does not create duplicate `foo()` / `fooAsync()` APIs.
@@ -62,7 +67,7 @@ PAGE_CHANGED
 
 when it observes a generation change while the old document is still alive.
 
-This prevents a delayed permission result, file picker result, app-list/icon result, or native process result from resolving a Promise in unrelated content after navigation.
+This prevents a delayed permission result, file picker result, app/resource result, or native process result from resolving a Promise in unrelated content after navigation.
 
 ## Native completion
 
@@ -105,6 +110,9 @@ FILE_RESULT_FAILED
 APP_LIST_FAILED
 APP_NOT_FOUND
 APP_ICON_FAILED
+PACKAGE_NOT_FOUND
+RESOURCE_NOT_FOUND
+RESOURCE_LOOKUP_FAILED
 BUSY
 EXEC_NOT_EXPOSED
 EXEC_FAILED
@@ -193,7 +201,7 @@ KCAPK does not read or copy the selected file as part of the picker operation.
 var apps = await NativeBridge.Android.apps.list();
 ```
 
-Icons are deliberately excluded from that list. Their Android resource descriptor is requested independently:
+Icons are deliberately excluded from that list. `apps.icon()` only identifies the Android resource used by the launcher activity:
 
 ```js
 var icon = await NativeBridge.Android.apps.icon(
@@ -202,7 +210,18 @@ var icon = await NativeBridge.Android.apps.icon(
 );
 ```
 
-`apps.icon()` does not rasterize, copy, or encode the icon. It resolves the icon resource declared by the launcher activity and returns resource metadata, including an `android.resource://` URI when a concrete resource ID exists.
+It returns the package, launcher activity, and resource ID. It does not expand or transform the Android resource.
+
+Generic Android resource metadata is handled separately:
+
+```js
+var resource = await NativeBridge.Android.resources.describe(
+    icon.packageName,
+    icon.resourceId
+);
+```
+
+The resource bridge can return names, type, `android.resource://` URI, density, and the APK resource path when Android exposes one. It does not rasterize, decode, copy, or otherwise interpret the resource.
 
 The synchronous `apps.launch()`, `apps.homeEnabled()`, `apps.setHomeEnabled()`, and `apps.openHomeSettings()` methods remain immediate Android operations.
 

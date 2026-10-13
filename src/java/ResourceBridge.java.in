@@ -1,0 +1,99 @@
+package @PACKAGE_NAME@;
+
+import android.content.Context;
+import android.content.pm.PackageManager;
+import android.content.res.Resources;
+import android.util.TypedValue;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import org.json.JSONObject;
+
+public class ResourceBridge {
+    private final Context context;
+    private final AsyncBridge asyncBridge;
+    private final ExecutorService executor = Executors.newSingleThreadExecutor();
+
+    public ResourceBridge(Context context, AsyncBridge asyncBridge) {
+        this.context = context;
+        this.asyncBridge = asyncBridge;
+    }
+
+    public boolean describe(
+        final long requestId,
+        final long generation,
+        final String packageName,
+        final int resourceId
+    ) {
+        if (!asyncBridge.begin(requestId, generation)) {
+            return false;
+        }
+
+        if (packageName == null || packageName.isEmpty() || resourceId == 0) {
+            asyncBridge.reject(requestId, generation, "INVALID_ARGUMENT", "Package name and resource ID are required");
+            return true;
+        }
+
+        try {
+            executor.execute(new Runnable() {
+                @Override
+                public void run() {
+                    try {
+                        asyncBridge.resolve(requestId, generation, describeResource(packageName, resourceId));
+                    } catch (PackageManager.NameNotFoundException cause) {
+                        asyncBridge.reject(requestId, generation, "PACKAGE_NOT_FOUND", "Package not found: " + packageName);
+                    } catch (Resources.NotFoundException cause) {
+                        asyncBridge.reject(requestId, generation, "RESOURCE_NOT_FOUND", "Resource not found: " + resourceId);
+                    } catch (Exception cause) {
+                        asyncBridge.reject(
+                            requestId,
+                            generation,
+                            "RESOURCE_LOOKUP_FAILED",
+                            cause.getMessage() == null ? "Unable to describe Android resource" : cause.getMessage()
+                        );
+                    }
+                }
+            });
+            return true;
+        } catch (Exception cause) {
+            asyncBridge.reject(requestId, generation, "RESOURCE_LOOKUP_FAILED", "Unable to start resource lookup");
+            return true;
+        }
+    }
+
+    public void destroy() {
+        executor.shutdownNow();
+    }
+
+    private JSONObject describeResource(String packageName, int resourceId) throws Exception {
+        PackageManager packageManager = context.getPackageManager();
+        Resources resources = packageManager.getResourcesForApplication(packageName);
+        TypedValue value = new TypedValue();
+        resources.getValue(resourceId, value, true);
+
+        String resourcePackage = resources.getResourcePackageName(resourceId);
+        String resourceType = resources.getResourceTypeName(resourceId);
+        String resourceName = resources.getResourceEntryName(resourceId);
+
+        JSONObject result = new JSONObject();
+        result.put("packageName", packageName);
+        result.put("resourceId", resourceId);
+        result.put("resourcePackage", resourcePackage);
+        result.put("resourceType", resourceType);
+        result.put("resourceName", resourceName);
+        result.put("resourceFullName", resources.getResourceName(resourceId));
+        result.put("uri", "android.resource://" + packageName + "/" + resourceId);
+        result.put("valueType", value.type);
+        result.put("density", value.density);
+
+        String assetPath = null;
+        if (value.string != null) {
+            String raw = value.string.toString();
+            if (raw.startsWith("res/") || raw.startsWith("assets/")) {
+                assetPath = raw;
+            }
+        }
+        result.put("assetPath", assetPath == null ? JSONObject.NULL : assetPath);
+
+        return result;
+    }
+}

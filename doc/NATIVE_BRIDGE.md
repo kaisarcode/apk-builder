@@ -17,6 +17,9 @@ NativeBridge
     ├── alarms
     ├── haptics
     ├── intents
+    ├── files
+    ├── apps
+    ├── resources
     ├── systemUI
     ├── clipboard
     └── screen

@@ -25,6 +25,7 @@ public class JSBridge {
     private final IntentBridge intentBridge;
     private final FileBridge fileBridge;
     private final AppBridge appBridge;
+    private final ResourceBridge resourceBridge;
     private final SystemUIBridge systemUIBridge;
     private final ClipboardBridge clipboardBridge;
     private final ScreenBridge screenBridge;
@@ -43,6 +44,7 @@ public class JSBridge {
         this.intentBridge = new IntentBridge(context);
         this.fileBridge = new FileBridge((Activity) context, asyncBridge);
         this.appBridge = new AppBridge(context, asyncBridge);
+        this.resourceBridge = new ResourceBridge(context, asyncBridge);
         this.systemUIBridge = new SystemUIBridge(context);
         this.clipboardBridge = new ClipboardBridge(context);
         this.screenBridge = new ScreenBridge(context);
@@ -286,6 +288,16 @@ public class JSBridge {
     }
 
     @JavascriptInterface
+    public boolean resourceDescribe(
+        long requestId,
+        long generation,
+        String packageName,
+        int resourceId
+    ) {
+        return canUseBridge() && resourceBridge.describe(requestId, generation, packageName, resourceId);
+    }
+
+    @JavascriptInterface
     public boolean systemUIStatusBar(String json) {
         return canUseBridge() && systemUIBridge.statusBar(json);
     }
@@ -350,6 +362,7 @@ public class JSBridge {
         permissionBridge.destroy();
         execBridge.destroy();
         appBridge.destroy();
+        resourceBridge.destroy();
         asyncBridge.destroy();
     }
 }
