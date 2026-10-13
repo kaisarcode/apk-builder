@@ -23,6 +23,7 @@ public class JSBridge {
     private final AlarmBridge alarmBridge;
     private final HapticBridge hapticBridge;
     private final IntentBridge intentBridge;
+    private final FileBridge fileBridge;
     private final SystemUIBridge systemUIBridge;
     private final ClipboardBridge clipboardBridge;
     private final ScreenBridge screenBridge;
@@ -39,6 +40,7 @@ public class JSBridge {
         this.alarmBridge = new AlarmBridge(context);
         this.hapticBridge = new HapticBridge(context);
         this.intentBridge = new IntentBridge(context);
+        this.fileBridge = new FileBridge((Activity) context, asyncBridge);
         this.systemUIBridge = new SystemUIBridge(context);
         this.clipboardBridge = new ClipboardBridge(context);
         this.screenBridge = new ScreenBridge(context);
@@ -239,6 +241,11 @@ public class JSBridge {
     @JavascriptInterface
     public String intentConsumeShare() {
         return canUseBridge() ? intentBridge.consumeShare() : "";
+    }
+
+    @JavascriptInterface
+    public boolean fileOpen(long requestId, long generation, String json) {
+        return canUseBridge() && fileBridge.open(requestId, generation, json);
     }
 
     @JavascriptInterface

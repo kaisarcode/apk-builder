@@ -315,6 +315,45 @@ On API 29+ KCAPK uses Android predefined vibration effects. Older versions fall 
 
 The generated manifest includes `android.permission.VIBRATE`.
 
+## Files
+
+Namespace:
+
+```js
+NativeBridge.Android.files
+```
+
+### Open a file
+
+```js
+var file = await NativeBridge.Android.files.open({
+    type: "*/*"
+});
+```
+
+`open()` launches Android's native document selector using `ACTION_OPEN_DOCUMENT` and returns a Promise.
+
+The optional `type` is a MIME type and defaults to `*/*`. For example:
+
+```js
+var image = await NativeBridge.Android.files.open({ type: "image/*" });
+```
+
+If the user cancels, the Promise resolves with `null`. Otherwise it resolves with a descriptor like:
+
+```js
+{
+    uri: "content://...",
+    name: "photo.png",
+    type: "image/png",
+    size: 12345
+}
+```
+
+The picker does not read or copy the selected file. It returns the Android `content://` URI and available metadata.
+
+No storage permission is required to use the Android document picker.
+
 ## Intents
 
 Namespace:
@@ -324,6 +363,8 @@ NativeBridge.Android.intents
 ```
 
 ### Share
+
+Text sharing:
 
 ```js
 NativeBridge.Android.intents.share({
@@ -335,7 +376,22 @@ NativeBridge.Android.intents.share({
 });
 ```
 
-Supported options are `text`, `subject`, `title`, `chooserTitle`, and MIME `type` (default `text/plain`). The method returns whether Android could start the Sharesheet.
+A selected file can be shared separately:
+
+```js
+var file = await NativeBridge.Android.files.open({ type: "*/*" });
+
+if (file) {
+    NativeBridge.Android.intents.share({
+        uri: file.uri,
+        type: file.type || "*/*",
+        title: file.name,
+        chooserTitle: "Share file"
+    });
+}
+```
+
+Supported options are `text`, `subject`, `title`, `chooserTitle`, MIME `type`, and an optional `content://` `uri`. When a URI is supplied, KCAPK sends it through `EXTRA_STREAM`, grants temporary read access to the receiving app, and opens the Android Sharesheet. The method returns whether Android could start the Sharesheet.
 
 ### Open a URL
 
@@ -476,7 +532,7 @@ New integrations should:
 - document permissions and Android-version behavior,
 - use the shared Promise layer when a result is inherently asynchronous.
 
-Activity-result based APIs such as future file pickers should use the shared async request/result registry rather than feature-specific callback conventions.
+Activity-result based APIs should use the shared async request/result registry rather than feature-specific callback conventions.
 
 ## Next step
 

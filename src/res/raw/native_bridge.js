@@ -230,6 +230,17 @@
                     }
                 }
             },
+            files: {
+                open: function (options) {
+                    return asyncRequest(function (requestId, generation) {
+                        return window.AndroidBridge.fileOpen(
+                            requestId,
+                            generation,
+                            JSON.stringify(options || {})
+                        );
+                    });
+                }
+            },
             systemUI: {
                 statusBar: function (options) {
                     return window.AndroidBridge.systemUIStatusBar(JSON.stringify(options || {}));

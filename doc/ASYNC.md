@@ -7,6 +7,7 @@ The public API does not expose request IDs or callback objects. Application code
 ```js
 var output = await NativeBridge.exec(["mytool", "status"]);
 var granted = await NativeBridge.Android.permissions.request("notifications");
+var file = await NativeBridge.Android.files.open({ type: "*/*" });
 ```
 
 ## Which methods are async
@@ -18,6 +19,7 @@ Current asynchronous operations are:
 ```text
 NativeBridge.exec(...)
 NativeBridge.Android.permissions.request(...)
+NativeBridge.Android.files.open(...)
 ```
 
 Immediate operations remain synchronous. KCAPK does not create duplicate `foo()` / `fooAsync()` APIs.
@@ -53,7 +55,7 @@ PAGE_CHANGED
 
 when it observes a generation change while the old document is still alive.
 
-This prevents a delayed permission result or native process result from resolving a Promise in unrelated content after navigation.
+This prevents a delayed permission result, file picker result, or native process result from resolving a Promise in unrelated content after navigation.
 
 ## Native completion
 
@@ -92,6 +94,7 @@ INVALID_ARGUMENT
 ACTIVITY_UNAVAILABLE
 PERMISSION_NOT_DECLARED
 PERMISSION_REQUEST_FAILED
+FILE_RESULT_FAILED
 BUSY
 EXEC_NOT_EXPOSED
 EXEC_FAILED
@@ -160,13 +163,25 @@ Only one runtime permission dialog and one exact-alarm settings request are allo
 
 See [Configuration](CONFIGURATION.md) for build-time permission declaration and [Android APIs](ANDROID_APIS.md) for the runtime API.
 
+## File picker
+
+`NativeBridge.Android.files.open()` uses Android's document picker and resolves through the shared activity-result registry:
+
+```js
+var file = await NativeBridge.Android.files.open({ type: "image/*" });
+```
+
+The Promise resolves with `null` when the user cancels. Otherwise it resolves with a descriptor containing the selected `content://` URI and available metadata such as name, MIME type, and size.
+
+KCAPK does not read or copy the selected file as part of the picker operation.
+
 ## Activity results
 
-The async layer also maintains a request-code registry for Android activity results.
+The async layer maintains a request-code registry for Android activity results.
 
-`MainActivity` forwards `onActivityResult()` to the bridge. No current public API consumes that registry yet, but it is the intended basis for future operations such as file pickers, directory selection, camera flows, or other Android activities that return data.
+`MainActivity` forwards `onActivityResult()` to the bridge. The file picker is the first public API using this registry. Future directory selection, camera flows, or other Android activities that return data should use the same mechanism.
 
-This keeps those future APIs on the same Promise mechanism rather than adding feature-specific callback conventions.
+This keeps those APIs on the same Promise mechanism rather than adding feature-specific callback conventions.
 
 ## UI-thread delivery
 

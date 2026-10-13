@@ -251,11 +251,15 @@
                     <span class="button-title">Clipboard</span>
                     <span class="button-detail">Write and read text</span>
                 </button>
-                <button id="share-test" type="button">
-                    <span class="button-title">Share</span>
+                <button id="pick-file" type="button">
+                    <span class="button-title">Pick file</span>
+                    <span class="button-detail">Open Android document selector</span>
+                </button>
+                <button id="share-file" type="button">
+                    <span class="button-title">Share selected file</span>
                     <span class="button-detail">Open Android Sharesheet</span>
                 </button>
-                <button id="keep-screen" type="button" aria-pressed="false">
+                <button id="keep-screen" class="wide" type="button" aria-pressed="false">
                     <span class="button-title">Keep screen · OFF</span>
                     <span class="button-detail">Allow normal screen timeout</span>
                 </button>
@@ -268,6 +272,7 @@
     <script>
         var keepScreenEnabled = false;
         var keepScreenButton = document.getElementById("keep-screen");
+        var selectedFile = null;
         var shareRetryCount = 0;
 
         function toast(message) {
@@ -351,10 +356,31 @@
             toast(written && result === value ? "Clipboard round-trip OK" : "Clipboard test failed");
         });
 
-        document.getElementById("share-test").addEventListener("click", function () {
+        document.getElementById("pick-file").addEventListener("click", async function () {
+            try {
+                var file = await NativeBridge.Android.files.open({ type: "*/*" });
+                if (!file) {
+                    toast("File selection cancelled");
+                    return;
+                }
+                selectedFile = file;
+                toast("Selected " + (file.name || "file"));
+            } catch (error) {
+                toast(errorText(error));
+            }
+        });
+
+        document.getElementById("share-file").addEventListener("click", function () {
+            if (!selectedFile) {
+                toast("Pick a file first");
+                return;
+            }
+
             var opened = NativeBridge.Android.intents.share({
-                text: "KCAPK NativeBridge.Android.intents.share works",
-                chooserTitle: "Share KCAPK test"
+                uri: selectedFile.uri,
+                type: selectedFile.type || "*/*",
+                title: selectedFile.name || "file",
+                chooserTitle: "Share selected file"
             });
             if (!opened) {
                 toast("Unable to open Sharesheet");

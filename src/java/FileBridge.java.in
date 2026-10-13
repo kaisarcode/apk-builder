@@ -1,0 +1,119 @@
+package @PACKAGE_NAME@;
+
+import android.app.Activity;
+import android.content.ContentResolver;
+import android.content.Intent;
+import android.database.Cursor;
+import android.net.Uri;
+import android.provider.OpenableColumns;
+import org.json.JSONObject;
+
+public class FileBridge {
+    private final Activity activity;
+    private final AsyncBridge asyncBridge;
+
+    public FileBridge(Activity activity, AsyncBridge asyncBridge) {
+        this.activity = activity;
+        this.asyncBridge = asyncBridge;
+    }
+
+    public boolean open(long requestId, long generation, String json) {
+        if (!asyncBridge.begin(requestId, generation)) {
+            return false;
+        }
+
+        String type = "*/*";
+        try {
+            JSONObject options = new JSONObject(json == null ? "{}" : json);
+            String requestedType = options.optString("type", "*/*");
+            if (requestedType != null && !requestedType.isEmpty()) {
+                type = requestedType;
+            }
+        } catch (Exception ignored) {
+            asyncBridge.reject(requestId, generation, "INVALID_ARGUMENT", "Invalid file picker options");
+            return true;
+        }
+
+        final Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT);
+        intent.addCategory(Intent.CATEGORY_OPENABLE);
+        intent.setType(type);
+
+        final int requestCode = asyncBridge.registerActivityResult(
+            generation,
+            new AsyncBridge.ActivityResultCallback() {
+                @Override
+                public void onResult(int resultCode, Intent data) {
+                    handleResult(requestId, generation, resultCode, data);
+                }
+            }
+        );
+
+        if (requestCode < 0) {
+            asyncBridge.reject(requestId, generation, "BUSY", "No activity result request code is available");
+            return true;
+        }
+
+        activity.runOnUiThread(new Runnable() {
+            @Override
+            public void run() {
+                try {
+                    activity.startActivityForResult(intent, requestCode);
+                } catch (Exception ignored) {
+                    asyncBridge.unregisterActivityResult(requestCode);
+                    asyncBridge.reject(requestId, generation, "ACTIVITY_UNAVAILABLE", "Unable to open the Android file picker");
+                }
+            }
+        });
+
+        return true;
+    }
+
+    private void handleResult(long requestId, long generation, int resultCode, Intent data) {
+        if (resultCode != Activity.RESULT_OK || data == null || data.getData() == null) {
+            asyncBridge.resolve(requestId, generation, null);
+            return;
+        }
+
+        try {
+            asyncBridge.resolve(requestId, generation, describe(data.getData()));
+        } catch (Exception ignored) {
+            asyncBridge.reject(requestId, generation, "FILE_RESULT_FAILED", "Unable to inspect selected file");
+        }
+    }
+
+    private JSONObject describe(Uri uri) throws Exception {
+        JSONObject file = new JSONObject();
+        file.put("uri", uri.toString());
+
+        ContentResolver resolver = activity.getContentResolver();
+        String mimeType = resolver.getType(uri);
+        file.put("type", mimeType == null ? "" : mimeType);
+
+        Cursor cursor = null;
+        try {
+            cursor = resolver.query(
+                uri,
+                new String[] { OpenableColumns.DISPLAY_NAME, OpenableColumns.SIZE },
+                null,
+                null,
+                null
+            );
+            if (cursor != null && cursor.moveToFirst()) {
+                int nameIndex = cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME);
+                int sizeIndex = cursor.getColumnIndex(OpenableColumns.SIZE);
+                if (nameIndex >= 0 && !cursor.isNull(nameIndex)) {
+                    file.put("name", cursor.getString(nameIndex));
+                }
+                if (sizeIndex >= 0 && !cursor.isNull(sizeIndex)) {
+                    file.put("size", cursor.getLong(sizeIndex));
+                }
+            }
+        } finally {
+            if (cursor != null) {
+                cursor.close();
+            }
+        }
+
+        return file;
+    }
+}

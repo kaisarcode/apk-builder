@@ -67,17 +67,21 @@ grep -q 'AndroidBridge.permissionRequest(requestId, generation' "$GENERATED_BRID
     echo "Error: permission request was not generated as an async request." >&2
     exit 1
 }
+grep -q 'AndroidBridge.fileOpen' "$GENERATED_BRIDGE_JS" || {
+    echo "Error: file picker was not generated as an async request." >&2
+    exit 1
+}
 grep -q 'intentConsumeShare' "$GENERATED_BRIDGE_JS" || {
     echo "Error: incoming share API was not generated." >&2
     exit 1
 }
-for NAMESPACE in haptics intents systemUI clipboard screen; do
+for NAMESPACE in haptics intents files systemUI clipboard screen; do
     grep -q "$NAMESPACE:" "$GENERATED_BRIDGE_JS" || {
         echo "Error: NativeBridge.Android.$NAMESPACE namespace was not generated." >&2
         exit 1
     }
 done
-for CLASS in AsyncBridge ExecBridge HapticBridge IntentBridge SystemUIBridge ClipboardBridge ScreenBridge; do
+for CLASS in AsyncBridge ExecBridge HapticBridge IntentBridge FileBridge SystemUIBridge ClipboardBridge ScreenBridge; do
     [ -f "$GENERATED_JAVA/$CLASS.java" ] || {
         echo "Error: $CLASS.java was not generated." >&2
         exit 1
@@ -100,8 +104,20 @@ grep -q 'PERMISSION_NOT_DECLARED' "$GENERATED_JAVA/PermissionBridge.java" || {
     echo "Error: undeclared permission handling was not generated." >&2
     exit 1
 }
+grep -q 'Intent.ACTION_OPEN_DOCUMENT' "$GENERATED_JAVA/FileBridge.java" || {
+    echo "Error: Android document picker was not generated." >&2
+    exit 1
+}
+grep -q 'OpenableColumns.DISPLAY_NAME' "$GENERATED_JAVA/FileBridge.java" || {
+    echo "Error: selected file metadata handling was not generated." >&2
+    exit 1
+}
 grep -q 'OpenableColumns.DISPLAY_NAME' "$GENERATED_JAVA/IntentBridge.java" || {
     echo "Error: incoming share metadata handling was not generated." >&2
+    exit 1
+}
+grep -q 'FLAG_GRANT_READ_URI_PERMISSION' "$GENERATED_JAVA/IntentBridge.java" || {
+    echo "Error: shared file URI read grant was not generated." >&2
     exit 1
 }
 grep -q 'native_bridge' "$GENERATED_JAVA/TrustedWebViewClient.java" || {

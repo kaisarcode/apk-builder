@@ -28,7 +28,31 @@ public class IntentBridge {
         try {
             JSONObject options = new JSONObject(json);
             Intent sendIntent = new Intent(Intent.ACTION_SEND);
-            sendIntent.setType(options.optString("type", "text/plain"));
+            String uriValue = options.optString("uri", "");
+
+            if (!uriValue.isEmpty()) {
+                Uri uri = Uri.parse(uriValue);
+                if (!"content".equalsIgnoreCase(uri.getScheme())) {
+                    return false;
+                }
+
+                String type = options.optString("type", "");
+                if (type.isEmpty()) {
+                    type = context.getContentResolver().getType(uri);
+                }
+                sendIntent.setType(type == null || type.isEmpty() ? "application/octet-stream" : type);
+                sendIntent.putExtra(Intent.EXTRA_STREAM, uri);
+                sendIntent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+                sendIntent.setClipData(
+                    ClipData.newUri(
+                        context.getContentResolver(),
+                        options.optString("title", "Shared file"),
+                        uri
+                    )
+                );
+            } else {
+                sendIntent.setType(options.optString("type", "text/plain"));
+            }
 
             if (options.has("text")) {
                 sendIntent.putExtra(Intent.EXTRA_TEXT, options.optString("text", ""));
