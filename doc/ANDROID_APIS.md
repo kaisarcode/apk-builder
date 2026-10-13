@@ -59,23 +59,6 @@ Permissions remain separate from API selection. For example:
 | `--api clipboard` | `NativeBridge.Android.clipboard.*` | no | Clipboard read/write operations. |
 | `--api screen` | `NativeBridge.Android.screen.*` | no | Keep-screen-on behavior. |
 
-Detailed reference:
-
-- [API index](apis/README.md)
-- [Core](apis/core.md)
-- [Network](apis/network.md)
-- [Permissions](apis/permissions.md)
-- [Notifications](apis/notifications.md)
-- [Alarms](apis/alarms.md)
-- [Haptics](apis/haptics.md)
-- [Intents](apis/intents.md)
-- [Files](apis/files.md)
-- [Apps and launcher](apis/apps.md)
-- [Resources](apis/resources.md)
-- [System UI](apis/system-ui.md)
-- [Clipboard](apis/clipboard.md)
-- [Screen](apis/screen.md)
-
 ## Internal dependencies
 
 An API may require internal support code without exposing another public namespace. For example, async APIs share `AsyncBridge`, and alarms use notification internals to deliver their current native notification action.
@@ -102,4 +85,8 @@ Every new public API should also receive a page under `doc/apis/` documenting ac
 
 ## Next step
 
-Continue with [API index](apis/README.md) or [External binaries](EXTERNAL_BINARIES.md).
+Continue with [External binaries](EXTERNAL_BINARIES.md).
+
+## Detailed reference
+
+[Detailed Android API reference](apis/README.md) - one page per optional Android capability with activation, usage, permissions, and platform behavior.
