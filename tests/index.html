@@ -215,18 +215,22 @@
         <section class="section">
             <div class="section-header">
                 <h2 class="section-title">Core</h2>
-                <p class="section-description">Basic KCAPK and Android bridge operations.</p>
+                <p class="section-description">Basic KCAPK and asynchronous bridge operations.</p>
             </div>
             <div class="grid">
                 <button id="run-exec" class="primary wide" type="button">
                     <span class="button-title">Run packaged executable</span>
-                    <span class="button-detail">NativeBridge.exec()</span>
+                    <span class="button-detail">await NativeBridge.exec()</span>
+                </button>
+                <button id="parallel-exec" type="button">
+                    <span class="button-title">Parallel exec</span>
+                    <span class="button-detail">Two concurrent native processes</span>
                 </button>
                 <button id="check-online" type="button">
                     <span class="button-title">Network state</span>
                     <span class="button-detail">Check current connectivity</span>
                 </button>
-                <button id="vibrate" type="button">
+                <button id="vibrate" class="wide" type="button">
                     <span class="button-title">Vibrate</span>
                     <span class="button-detail">200 ms vibration</span>
                 </button>
@@ -239,6 +243,10 @@
                 <p class="section-description">Useful Android platform actions.</p>
             </div>
             <div class="grid">
+                <button id="notification-permission" type="button">
+                    <span class="button-title">Notifications permission</span>
+                    <span class="button-detail">Async Android permission result</span>
+                </button>
                 <button id="clipboard-test" type="button">
                     <span class="button-title">Clipboard</span>
                     <span class="button-detail">Write and read text</span>
@@ -247,7 +255,7 @@
                     <span class="button-title">Share</span>
                     <span class="button-detail">Open Android Sharesheet</span>
                 </button>
-                <button id="keep-screen" class="wide" type="button" aria-pressed="false">
+                <button id="keep-screen" type="button" aria-pressed="false">
                     <span class="button-title">Keep screen · OFF</span>
                     <span class="button-detail">Allow normal screen timeout</span>
                 </button>
@@ -265,15 +273,38 @@
             NativeBridge.Android.showToast(String(message));
         }
 
+        function errorText(error) {
+            if (!error) {
+                return "Unknown error";
+            }
+            return error.code ? error.code + ": " + error.message : error.message || String(error);
+        }
+
         document.addEventListener("click", function (event) {
             if (event.target.closest("button")) {
                 NativeBridge.Android.haptics.effect("click");
             }
         }, true);
 
-        document.getElementById("run-exec").addEventListener("click", function () {
-            var output = NativeBridge.exec(["kcapk-test-exec"]);
-            toast(output || "Executable completed");
+        document.getElementById("run-exec").addEventListener("click", async function () {
+            try {
+                var output = await NativeBridge.exec(["kcapk-test-exec"]);
+                toast(output || "Executable completed");
+            } catch (error) {
+                toast(errorText(error));
+            }
+        });
+
+        document.getElementById("parallel-exec").addEventListener("click", async function () {
+            try {
+                var outputs = await Promise.all([
+                    NativeBridge.exec(["kcapk-test-exec"]),
+                    NativeBridge.exec(["kcapk-test-exec"])
+                ]);
+                toast("Parallel exec: " + outputs.length + "/2 completed");
+            } catch (error) {
+                toast(errorText(error));
+            }
         });
 
         document.getElementById("check-online").addEventListener("click", function () {
@@ -283,6 +314,15 @@
         document.getElementById("vibrate").addEventListener("click", function () {
             var ok = NativeBridge.Android.haptics.vibrate(200);
             toast(ok ? "Vibrate: 200 ms" : "Vibration unavailable");
+        });
+
+        document.getElementById("notification-permission").addEventListener("click", async function () {
+            try {
+                var granted = await NativeBridge.Android.permissions.request("notifications");
+                toast("Notifications permission: " + (granted ? "granted" : "denied"));
+            } catch (error) {
+                toast(errorText(error));
+            }
         });
 
         document.getElementById("clipboard-test").addEventListener("click", function () {

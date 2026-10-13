@@ -14,6 +14,7 @@ FINAL_APK="$TEST_DIR/test.apk"
 EXEC_ARM64="$TEST_DIR/fixtures/arm64-v8a/kcapk-test-exec"
 EXEC_X86_64="$TEST_DIR/fixtures/x86_64/kcapk-test-exec"
 GENERATED_JAVA="$WORK_DIR/src/main/java/com/kaisarcode/kcapk/test"
+GENERATED_BRIDGE_JS="$WORK_DIR/res/raw/native_bridge.js"
 
 # Removes the temporary working directory.
 # @return None.
@@ -39,22 +40,51 @@ else
     exit 1
 fi
 
-grep -q 'Android:{' "$GENERATED_JAVA/TrustedWebViewClient.java" || {
-    echo "Error: NativeBridge.Android namespace was not generated." >&2
+[ -f "$GENERATED_BRIDGE_JS" ] || {
+    echo "Error: NativeBridge JavaScript resource was not generated." >&2
+    exit 1
+}
+grep -q 'new Promise' "$GENERATED_BRIDGE_JS" || {
+    echo "Error: NativeBridge async Promise layer was not generated." >&2
+    exit 1
+}
+grep -q '__complete' "$GENERATED_BRIDGE_JS" || {
+    echo "Error: NativeBridge async completion handler was not generated." >&2
+    exit 1
+}
+grep -q 'AndroidBridge.exec(requestId, generation' "$GENERATED_BRIDGE_JS" || {
+    echo "Error: NativeBridge.exec was not generated as an async request." >&2
+    exit 1
+}
+grep -q 'AndroidBridge.permissionRequest(requestId, generation' "$GENERATED_BRIDGE_JS" || {
+    echo "Error: permission request was not generated as an async request." >&2
     exit 1
 }
 for NAMESPACE in haptics intents systemUI clipboard screen; do
-    grep -q "$NAMESPACE:{" "$GENERATED_JAVA/TrustedWebViewClient.java" || {
+    grep -q "$NAMESPACE:" "$GENERATED_BRIDGE_JS" || {
         echo "Error: NativeBridge.Android.$NAMESPACE namespace was not generated." >&2
         exit 1
     }
 done
-for CLASS in HapticBridge IntentBridge SystemUIBridge ClipboardBridge ScreenBridge; do
+for CLASS in AsyncBridge ExecBridge HapticBridge IntentBridge SystemUIBridge ClipboardBridge ScreenBridge; do
     [ -f "$GENERATED_JAVA/$CLASS.java" ] || {
         echo "Error: $CLASS.java was not generated." >&2
         exit 1
     }
 done
+
+grep -q 'onRequestPermissionsResult' "$GENERATED_JAVA/MainActivity.java" || {
+    echo "Error: permission result forwarding was not generated." >&2
+    exit 1
+}
+grep -q 'onActivityResult' "$GENERATED_JAVA/MainActivity.java" || {
+    echo "Error: activity result forwarding was not generated." >&2
+    exit 1
+}
+grep -q 'native_bridge' "$GENERATED_JAVA/TrustedWebViewClient.java" || {
+    echo "Error: NativeBridge resource loading was not generated." >&2
+    exit 1
+}
 
 grep -q 'android.permission.ACCESS_NETWORK_STATE' "$WORK_DIR/AndroidManifest.xml" || {
     echo "Error: network state permission was not generated." >&2

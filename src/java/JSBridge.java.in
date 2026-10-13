@@ -1,21 +1,23 @@
 package @PACKAGE_NAME@;
 
+import android.app.Activity;
 import android.content.Context;
+import android.content.Intent;
 import android.net.ConnectivityManager;
 import android.net.NetworkInfo;
 import android.webkit.JavascriptInterface;
+import android.webkit.WebView;
 import android.widget.Toast;
-import java.io.BufferedReader;
-import java.io.File;
-import java.io.InputStreamReader;
 import java.net.URI;
-import org.json.JSONArray;
+import java.util.concurrent.atomic.AtomicLong;
 
 public class JSBridge {
     private static final String LOCAL_ASSET_PREFIX = "file:///android_asset/";
     private static final String[] EXECUTABLE_NAMES = { @EXECUTABLE_NAMES@ };
     private final Context context;
     private final String[] trustedOrigins;
+    private final AsyncBridge asyncBridge;
+    private final ExecBridge execBridge;
     private final PermissionBridge permissionBridge;
     private final NotificationBridge notificationBridge;
     private final AlarmBridge alarmBridge;
@@ -24,12 +26,15 @@ public class JSBridge {
     private final SystemUIBridge systemUIBridge;
     private final ClipboardBridge clipboardBridge;
     private final ScreenBridge screenBridge;
+    private final AtomicLong pageGeneration = new AtomicLong(0L);
     private volatile boolean bridgeAllowed;
 
-    public JSBridge(Context context, String[] trustedOrigins) {
+    public JSBridge(Context context, WebView webView, String[] trustedOrigins) {
         this.context = context;
         this.trustedOrigins = trustedOrigins;
-        this.permissionBridge = new PermissionBridge(context);
+        this.asyncBridge = new AsyncBridge((Activity) context, webView);
+        this.execBridge = new ExecBridge(context, asyncBridge, EXECUTABLE_NAMES);
+        this.permissionBridge = new PermissionBridge(context, asyncBridge);
         this.notificationBridge = new NotificationBridge(context);
         this.alarmBridge = new AlarmBridge(context);
         this.hapticBridge = new HapticBridge(context);
@@ -98,78 +103,25 @@ public class JSBridge {
         return scheme + "://" + host + ":" + port;
     }
 
-    public void setCurrentUrl(String url) {
+    public long beginPage(String url) {
         bridgeAllowed = isTrustedUrl(url, trustedOrigins);
+        long generation = pageGeneration.incrementAndGet();
+        asyncBridge.setGeneration(generation);
+        execBridge.cancelStale(generation);
+        return generation;
+    }
+
+    public long getPageGeneration() {
+        return pageGeneration.get();
     }
 
     private boolean canUseBridge() {
         return bridgeAllowed;
     }
 
-    private String executablePath(String name) {
-        for (String executableName : EXECUTABLE_NAMES) {
-            if (executableName.equals(name)) {
-                String packagedName = name.replace('.', '_').replace('-', '_');
-                return new File(
-                    context.getApplicationInfo().nativeLibraryDir,
-                    "libexec_" + packagedName + ".so"
-                ).getAbsolutePath();
-            }
-        }
-        return null;
-    }
-
     @JavascriptInterface
-    public String exec(String json) {
-        if (!canUseBridge()) {
-            return "";
-        }
-        if (json == null || json.isEmpty()) {
-            return "exec: missing arguments";
-        }
-
-        try {
-            JSONArray values = new JSONArray(json);
-            if (values.length() == 0 || values.isNull(0)) {
-                return "exec: missing executable";
-            }
-
-            String[] command = new String[values.length()];
-            for (int i = 0; i < values.length(); i++) {
-                if (values.isNull(i)) {
-                    return "exec: invalid argument";
-                }
-                command[i] = values.getString(i);
-            }
-
-            String executable = executablePath(command[0]);
-            if (executable == null) {
-                return "exec: executable not exposed: " + command[0];
-            }
-            command[0] = executable;
-
-            ProcessBuilder builder = new ProcessBuilder(command);
-            builder.redirectErrorStream(true);
-            Process process = builder.start();
-            BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream()));
-            StringBuilder output = new StringBuilder();
-            String line;
-
-            while ((line = reader.readLine()) != null) {
-                if (output.length() > 0) {
-                    output.append('\n');
-                }
-                output.append(line);
-            }
-
-            int code = process.waitFor();
-            if (code != 0 && output.length() == 0) {
-                return "exec: process exited with code " + code;
-            }
-            return output.toString();
-        } catch (Exception error) {
-            return "exec: " + error.getMessage();
-        }
+    public boolean exec(long requestId, long generation, String json) {
+        return canUseBridge() && execBridge.start(requestId, generation, json);
     }
 
     @JavascriptInterface
@@ -177,7 +129,6 @@ public class JSBridge {
         if (!canUseBridge()) {
             return;
         }
-
         Toast.makeText(context, message, Toast.LENGTH_SHORT).show();
     }
 
@@ -201,8 +152,8 @@ public class JSBridge {
     }
 
     @JavascriptInterface
-    public boolean permissionRequest(String name) {
-        return canUseBridge() && permissionBridge.request(name);
+    public boolean permissionRequest(long requestId, long generation, String name) {
+        return canUseBridge() && permissionBridge.request(requestId, generation, name);
     }
 
     @JavascriptInterface
@@ -328,5 +279,23 @@ public class JSBridge {
     @JavascriptInterface
     public boolean screenKeepOn(boolean enabled) {
         return canUseBridge() && screenBridge.keepOn(enabled);
+    }
+
+    public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] grantResults) {
+        permissionBridge.onRequestPermissionsResult(requestCode, permissions, grantResults);
+    }
+
+    public void onActivityResult(int requestCode, int resultCode, Intent data) {
+        asyncBridge.onActivityResult(requestCode, resultCode, data);
+    }
+
+    public void onResume() {
+        permissionBridge.onResume();
+    }
+
+    public void destroy() {
+        permissionBridge.destroy();
+        execBridge.destroy();
+        asyncBridge.destroy();
     }
 }

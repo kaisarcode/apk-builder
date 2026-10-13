@@ -1,6 +1,6 @@
 # Testing
 
-KCAPK includes an integration test that builds a real generated Android application and validates key packaging behavior.
+KCAPK includes an integration test that builds a real generated Android application and validates key packaging and bridge behavior.
 
 ## Run the test
 
@@ -18,19 +18,22 @@ tests/test.apk
 
 The temporary generated Android project is created outside `tests/` and removed after the test completes.
 
-## What the test validates
+## What the host-side test validates
 
 The integration script checks that KCAPK can:
 
 - generate the Android project,
 - compile the current Java bridge classes,
-- generate the `NativeBridge.Android` namespace,
+- generate the standalone NativeBridge JavaScript resource,
+- include the Promise request/completion layer,
+- generate `AsyncBridge` and `ExecBridge`,
+- forward permission and activity results from `MainActivity`,
 - include required Android permissions,
 - include alarm receivers,
 - package external executables for multiple ABIs,
 - produce the final APK.
 
-The script currently checks bridge namespaces and generated classes for the Android utility integrations as well as manifest entries such as notification, vibration, and network-state permissions.
+The script verifies that `NativeBridge.exec()` and `NativeBridge.Android.permissions.request()` are wired through the asynchronous request layer rather than through synchronous return values.
 
 ## Native executable fixtures
 
@@ -58,14 +61,16 @@ See [External binaries](EXTERNAL_BINARIES.md) for the integration model.
 
 Its controls test operations such as:
 
-- packaged executable execution,
+- asynchronous packaged executable execution,
+- two concurrent executable requests with `Promise.all`,
+- Android notification permission results,
 - network-state queries,
 - vibration and haptics,
 - clipboard round trips,
 - Android Sharesheet integration,
 - keep-screen-on behavior.
 
-Interactive results are generally surfaced with Android toasts.
+Interactive results are surfaced with Android toasts.
 
 ## Install the generated test APK
 
@@ -79,18 +84,25 @@ The test script also prints the corresponding install command.
 
 ## Manual validation
 
-A successful host-side build proves that the generated source compiles and the APK packages correctly, but device behavior still needs manual validation for Android features that depend on runtime services, permissions, system settings, or hardware.
+A successful host-side build proves that generated source compiles and the APK packages correctly, but device behavior still needs manual validation for Android features that depend on runtime services, permissions, lifecycle, system settings, or hardware.
 
-Examples include:
+The async layer should be manually checked for:
+
+- `await NativeBridge.exec()` resolving with executable output,
+- parallel executable requests resolving independently,
+- notification permission requests resolving only after the Android result,
+- page navigation not receiving stale native completions,
+- pending native processes being cleaned up when the Activity is destroyed.
+
+Other device-dependent checks include:
 
 - vibration hardware,
-- notification permission,
 - exact-alarm special access,
 - Sharesheet availability,
 - system-bar behavior across Android versions.
 
-When adding a new Android bridge API, update both the generated integration test checks and the test application when practical.
+When adding a new asynchronous Android bridge API, update both host-side generated-source checks and the test application when practical.
 
 ## Next step
 
-Return to the complete [Documentation](../README.md#documentation) index in the README.
+Return to the complete [Documentation index](../README.md#documentation).

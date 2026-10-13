@@ -31,41 +31,49 @@ This prevents Android APIs from turning the top-level namespace into an unstruct
 
 ## Trust boundary
 
-The bridge is available only to trusted WebView content.
+The bridge is available only while KCAPK considers the current top-level WebView page trusted.
 
 Packaged local assets are trusted automatically. Remote applications use origin matching and optional `--trusted-origin` entries.
 
 See [WebView and trusted origins](WEBVIEW.md).
 
-## Synchronous interface
+## Synchronous and asynchronous methods
 
-The current bridge methods are synchronous from JavaScript's point of view and return primitive values such as strings or booleans.
-
-Examples:
+Methods that can produce an immediate result remain synchronous:
 
 ```js
 var online = NativeBridge.Android.isOnline();
 var value = NativeBridge.Android.clipboard.get();
-var started = NativeBridge.Android.intents.openUrl("https://example.com");
+var opened = NativeBridge.Android.intents.openUrl("https://example.com");
 ```
 
-A boolean `true` generally means the native operation was accepted or started successfully. It does not always mean a later system interaction completed successfully.
+Operations that wait for native work or user interaction return Promises:
 
-For example, a permission request may return `true` because KCAPK successfully opened Android's permission flow. The application should query the permission state again after the user returns.
+```js
+var output = await NativeBridge.exec(["mytool", "status"]);
+var granted = await NativeBridge.Android.permissions.request("notifications");
+```
+
+KCAPK does not provide separate sync and async variants of the same operation. An operation uses a Promise when its result is inherently deferred.
+
+The Promise/request mechanism, page-generation protection, lifecycle behavior, and common errors are documented in [Async operations](ASYNC.md).
 
 ## Error model
 
-Most Android bridge methods return `false` when:
+Synchronous Android bridge methods generally return `false` when an immediate operation cannot be performed and empty strings when a string value is unavailable.
 
-- the bridge is unavailable for the current page,
-- the Android service is unavailable,
-- input is invalid,
-- a required permission or special access is missing, or
-- Android rejects the requested operation.
+Asynchronous operations reject their Promise with a JavaScript `Error`. KCAPK adds a stable `code` property and may attach operation-specific fields such as an executable `exitCode` or captured `output`.
 
-String-returning operations generally return an empty string when no value is available.
+Example:
 
-`NativeBridge.exec()` is different: it returns process output as a string and uses textual `exec:` errors for invalid or rejected execution requests.
+```js
+try {
+    await NativeBridge.exec(["missing-tool"]);
+} catch (error) {
+    console.log(error.code);
+    console.log(error.message);
+}
+```
 
 ## Android APIs
 
@@ -73,14 +81,14 @@ The complete current API exposed under `NativeBridge.Android` is documented sepa
 
 ## External executables
 
-Packaging native programs, ABI handling, the executable whitelist, and the `NativeBridge.exec()` contract are documented in [External binaries](EXTERNAL_BINARIES.md).
+Packaging native programs, ABI handling, the executable whitelist, and the Promise returned by `NativeBridge.exec()` are documented in [External binaries](EXTERNAL_BINARIES.md).
 
-## Future asynchronous APIs
+## Implementation boundary
 
-Some Android capabilities naturally require asynchronous results, such as file pickers or activity-result based flows. KCAPK does not currently expose a general Promise/request-ID layer.
+The public JavaScript wrapper lives as a generated Android raw resource rather than as a Java string. Java bridge classes implement the native side, while the JavaScript resource defines the public namespace and Promise registry.
 
-Such APIs should be added only after a consistent asynchronous bridge mechanism exists rather than inventing a different callback convention for each feature.
+This keeps the JavaScript contract readable and allows future asynchronous Android APIs to share one request mechanism instead of inventing per-feature callbacks.
 
 ## Next step
 
-Continue with [Android APIs](ANDROID_APIS.md).
+Continue with [Async operations](ASYNC.md).

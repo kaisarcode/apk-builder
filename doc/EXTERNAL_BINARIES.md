@@ -3,10 +3,12 @@
 KCAPK can package native Android command-line executables and expose them to trusted WebView content through:
 
 ```js
-NativeBridge.exec(...)
+await NativeBridge.exec(...)
 ```
 
 This feature is deliberately separate from `NativeBridge.Android.*` because it executes explicitly bundled native programs rather than calling Android framework APIs.
+
+`NativeBridge.exec()` is asynchronous by design. There is no separate synchronous execution mode.
 
 ## Add a binary
 
@@ -21,10 +23,59 @@ Use `--exec` during the build:
 The executable basename becomes its logical JavaScript name:
 
 ```js
-NativeBridge.exec(["mytool", "--version"]);
+var output = await NativeBridge.exec(["mytool", "--version"]);
 ```
 
 The first array element is the executable name. Remaining elements are passed as process arguments without shell interpretation.
+
+## Promise result
+
+A successful process resolves with merged standard output and standard error as a string:
+
+```js
+try {
+    var output = await NativeBridge.exec(["mytool", "status"]);
+    console.log(output);
+} catch (error) {
+    console.log(error.code);
+    console.log(error.message);
+}
+```
+
+The native process runs in KCAPK's worker pool rather than blocking the synchronous JavaScript-interface call while waiting for the process to finish.
+
+Multiple commands may execute concurrently:
+
+```js
+var outputs = await Promise.all([
+    NativeBridge.exec(["tool-a"]),
+    NativeBridge.exec(["tool-b"])
+]);
+```
+
+## Process failures
+
+A non-zero process exit rejects the Promise with:
+
+```text
+error.code = "EXEC_FAILED"
+error.exitCode = <process exit code>
+error.output = <captured output>
+```
+
+A requested executable that was not packaged rejects with:
+
+```text
+EXEC_NOT_EXPOSED
+```
+
+Invalid argument arrays reject with:
+
+```text
+INVALID_ARGUMENT
+```
+
+See [Async operations](ASYNC.md) for the common Promise/error model.
 
 ## No shell evaluation
 
@@ -33,7 +84,7 @@ The first array element is the executable name. Remaining elements are passed as
 For example:
 
 ```js
-NativeBridge.exec(["mytool", "--name", "hello world"]);
+await NativeBridge.exec(["mytool", "--name", "hello world"]);
 ```
 
 passes three arguments to the process. KCAPK does not concatenate this into a shell command and does not expose arbitrary shell execution.
@@ -42,13 +93,7 @@ passes three arguments to the process. KCAPK does not concatenate this into a sh
 
 Only executables supplied with `--exec` are available.
 
-If JavaScript requests a name that was not packaged, KCAPK rejects it:
-
-```text
-exec: executable not exposed: <name>
-```
-
-JavaScript cannot provide an arbitrary filesystem path to bypass this whitelist.
+JavaScript cannot provide an arbitrary filesystem path to bypass the whitelist.
 
 The whitelist is generated at build time from the basenames of the packaged executables.
 
@@ -96,7 +141,7 @@ The same logical executable can be supplied once per ABI:
 Both files have the same basename, so JavaScript still calls:
 
 ```js
-NativeBridge.exec(["mytool", "--version"]);
+var output = await NativeBridge.exec(["mytool", "--version"]);
 ```
 
 Android selects the matching native library directory for the device ABI.
@@ -126,7 +171,7 @@ For example:
 ```text
 Logical name:        my-tool
 Packaged filename:   libexec_my_tool.so
-JavaScript call:     NativeBridge.exec(["my-tool"])
+JavaScript call:     await NativeBridge.exec(["my-tool"])
 ```
 
 ## Multiple different tools
@@ -142,35 +187,27 @@ JavaScript call:     NativeBridge.exec(["my-tool"])
 JavaScript can invoke each independently:
 
 ```js
-NativeBridge.exec(["tool-a", "--version"]);
-NativeBridge.exec(["tool-b", "status"]);
+var version = await NativeBridge.exec(["tool-a", "--version"]);
+var status = await NativeBridge.exec(["tool-b", "status"]);
 ```
 
-## Return value
+## Lifecycle
 
-`NativeBridge.exec()` returns merged standard output and standard error as a string.
+Each execution belongs to the top-level WebView page generation that started it.
 
-```js
-var output = NativeBridge.exec(["mytool", "status"]);
-```
+When navigation moves to another page, KCAPK discards stale results and terminates running processes from older generations when possible.
 
-If the process exits with a non-zero code and produces no output, KCAPK returns:
+When the generated Activity is destroyed, KCAPK destroys active processes and shuts down the executable worker pool.
 
-```text
-exec: process exited with code N
-```
-
-Other execution failures use an `exec:` textual error.
+`NativeBridge.exec()` is therefore an application/WebView execution primitive, not a background daemon or long-lived Android service API.
 
 ## Security boundary
 
 The feature is intentionally constrained in three places:
 
-1. bridge access is limited to trusted WebView content,
+1. bridge access is limited to trusted top-level WebView state,
 2. executable names are fixed at build time,
 3. arguments are passed directly to `ProcessBuilder` rather than evaluated by a shell.
-
-These constraints reduce the risk of turning the bridge into arbitrary command execution.
 
 The packaged native program itself still defines what operations are possible. A broadly privileged or unsafe executable can expose powerful behavior through its own arguments, so packaged binaries should be treated as part of the application's trusted native code.
 
@@ -184,7 +221,7 @@ The KCAPK integration point begins with the finished executable file.
 
 ## Testing multi-ABI packaging
 
-The repository integration test packages the same fixture executable for multiple ABIs and verifies that the expected entries exist inside the APK.
+The repository integration test packages the same fixture executable for multiple ABIs and verifies that the expected entries exist inside the APK. The test application also invokes `NativeBridge.exec()` through the Promise layer and includes a parallel-execution control.
 
 See [Testing](TESTING.md).
 

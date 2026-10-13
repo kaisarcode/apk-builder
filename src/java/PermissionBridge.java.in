@@ -12,12 +12,27 @@ import android.provider.Settings;
 
 public class PermissionBridge {
     private static final int REQUEST_CODE = 64001;
+
+    private static final class PendingRequest {
+        final long requestId;
+        final long generation;
+
+        PendingRequest(long requestId, long generation) {
+            this.requestId = requestId;
+            this.generation = generation;
+        }
+    }
+
     private final Context context;
     private final Activity activity;
+    private final AsyncBridge asyncBridge;
+    private PendingRequest runtimePending;
+    private PendingRequest exactAlarmPending;
 
-    public PermissionBridge(Context context) {
+    public PermissionBridge(Context context, AsyncBridge asyncBridge) {
         this.context = context;
         this.activity = context instanceof Activity ? (Activity) context : null;
+        this.asyncBridge = asyncBridge;
     }
 
     public boolean has(String name) {
@@ -37,31 +52,103 @@ public class PermissionBridge {
         return context.checkSelfPermission(permission) == PackageManager.PERMISSION_GRANTED;
     }
 
-    public boolean request(String name) {
-        if (isExactAlarmPermission(name)) {
-            return requestExactAlarms();
-        }
-
-        String permission = resolvePermission(name);
-        if (permission == null || activity == null) {
+    public boolean request(long requestId, long generation, String name) {
+        if (!asyncBridge.begin(requestId, generation)) {
             return false;
         }
 
+        if (isExactAlarmPermission(name)) {
+            requestExactAlarms(requestId, generation);
+            return true;
+        }
+
+        final String permission = resolvePermission(name);
+        if (permission == null) {
+            asyncBridge.reject(requestId, generation, "INVALID_ARGUMENT", "Unknown permission: " + name);
+            return true;
+        }
+        if (activity == null) {
+            asyncBridge.reject(requestId, generation, "ACTIVITY_UNAVAILABLE", "Permission request requires an Activity");
+            return true;
+        }
+
         if (Manifest.permission.POST_NOTIFICATIONS.equals(permission) && Build.VERSION.SDK_INT < 33) {
+            asyncBridge.resolve(requestId, generation, true);
             return true;
         }
 
         if (context.checkSelfPermission(permission) == PackageManager.PERMISSION_GRANTED) {
+            asyncBridge.resolve(requestId, generation, true);
             return true;
+        }
+
+        synchronized (this) {
+            if (runtimePending != null) {
+                asyncBridge.reject(requestId, generation, "BUSY", "Another runtime permission request is active");
+                return true;
+            }
+            runtimePending = new PendingRequest(requestId, generation);
         }
 
         activity.runOnUiThread(new Runnable() {
             @Override
             public void run() {
-                activity.requestPermissions(new String[] { permission }, REQUEST_CODE);
+                try {
+                    activity.requestPermissions(new String[] { permission }, REQUEST_CODE);
+                } catch (Exception error) {
+                    PendingRequest pending;
+                    synchronized (PermissionBridge.this) {
+                        pending = runtimePending;
+                        runtimePending = null;
+                    }
+                    if (pending != null) {
+                        asyncBridge.reject(
+                            pending.requestId,
+                            pending.generation,
+                            "PERMISSION_REQUEST_FAILED",
+                            error.getMessage() == null ? "Permission request failed" : error.getMessage()
+                        );
+                    }
+                }
             }
         });
         return true;
+    }
+
+    public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] grantResults) {
+        if (requestCode != REQUEST_CODE) {
+            return;
+        }
+
+        PendingRequest pending;
+        synchronized (this) {
+            pending = runtimePending;
+            runtimePending = null;
+        }
+        if (pending == null) {
+            return;
+        }
+
+        boolean granted = grantResults != null &&
+            grantResults.length > 0 &&
+            grantResults[0] == PackageManager.PERMISSION_GRANTED;
+        asyncBridge.resolve(pending.requestId, pending.generation, granted);
+    }
+
+    public void onResume() {
+        PendingRequest pending;
+        synchronized (this) {
+            pending = exactAlarmPending;
+            exactAlarmPending = null;
+        }
+        if (pending != null) {
+            asyncBridge.resolve(pending.requestId, pending.generation, canScheduleExactAlarms());
+        }
+    }
+
+    public synchronized void destroy() {
+        runtimePending = null;
+        exactAlarmPending = null;
     }
 
     private boolean canScheduleExactAlarms() {
@@ -73,12 +160,22 @@ public class PermissionBridge {
         return manager != null && manager.canScheduleExactAlarms();
     }
 
-    private boolean requestExactAlarms() {
+    private void requestExactAlarms(long requestId, long generation) {
         if (Build.VERSION.SDK_INT < 31 || canScheduleExactAlarms()) {
-            return true;
+            asyncBridge.resolve(requestId, generation, true);
+            return;
         }
         if (activity == null) {
-            return false;
+            asyncBridge.reject(requestId, generation, "ACTIVITY_UNAVAILABLE", "Exact alarm request requires an Activity");
+            return;
+        }
+
+        synchronized (this) {
+            if (exactAlarmPending != null) {
+                asyncBridge.reject(requestId, generation, "BUSY", "Another exact alarm request is active");
+                return;
+            }
+            exactAlarmPending = new PendingRequest(requestId, generation);
         }
 
         final Intent intent = new Intent(
@@ -86,16 +183,35 @@ public class PermissionBridge {
             Uri.parse("package:" + context.getPackageName())
         );
         if (intent.resolveActivity(context.getPackageManager()) == null) {
-            return false;
+            synchronized (this) {
+                exactAlarmPending = null;
+            }
+            asyncBridge.reject(requestId, generation, "ACTIVITY_UNAVAILABLE", "Exact alarm settings are unavailable");
+            return;
         }
 
         activity.runOnUiThread(new Runnable() {
             @Override
             public void run() {
-                activity.startActivity(intent);
+                try {
+                    activity.startActivity(intent);
+                } catch (Exception error) {
+                    PendingRequest pending;
+                    synchronized (PermissionBridge.this) {
+                        pending = exactAlarmPending;
+                        exactAlarmPending = null;
+                    }
+                    if (pending != null) {
+                        asyncBridge.reject(
+                            pending.requestId,
+                            pending.generation,
+                            "PERMISSION_REQUEST_FAILED",
+                            error.getMessage() == null ? "Exact alarm request failed" : error.getMessage()
+                        );
+                    }
+                }
             }
         });
-        return true;
     }
 
     private static boolean isExactAlarmPermission(String name) {

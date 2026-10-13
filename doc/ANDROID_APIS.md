@@ -6,9 +6,11 @@ KCAPK exposes a curated set of Android platform capabilities under:
 NativeBridge.Android
 ```
 
-The goal is not to mirror the complete Android SDK. These APIs are intended to cover useful general-purpose operations that a WebView application commonly needs.
+The goal is not to mirror the complete Android SDK. These APIs cover useful general-purpose operations that a WebView application commonly needs.
 
-All methods require the current WebView page to be trusted. See [WebView and trusted origins](WEBVIEW.md).
+All methods require the current top-level WebView state to be trusted. See [WebView and trusted origins](WEBVIEW.md).
+
+Methods are synchronous unless explicitly documented as Promise-returning. See [Async operations](ASYNC.md) for the shared asynchronous contract.
 
 ## Toast
 
@@ -18,18 +20,6 @@ NativeBridge.Android.showToast(message);
 
 Shows a short Android toast.
 
-Parameters:
-
-- `message`: text to display.
-
-The method does not return a meaningful result.
-
-Example:
-
-```js
-NativeBridge.Android.showToast("Saved");
-```
-
 ## Network state
 
 ```js
@@ -38,28 +28,36 @@ NativeBridge.Android.isOnline();
 
 Returns a boolean indicating whether Android reports an active connected network.
 
-Example:
-
-```js
-if (NativeBridge.Android.isOnline()) {
-    // network available
-}
-```
-
 The generated manifest includes `android.permission.ACCESS_NETWORK_STATE`.
 
 ## Permissions
 
 ```js
 NativeBridge.Android.permissions.has(name);
-NativeBridge.Android.permissions.request(name);
+await NativeBridge.Android.permissions.request(name);
 ```
 
-`has(name)` returns whether the requested permission or special access is currently available.
+`has(name)` is synchronous and returns whether the permission or special access is currently available.
 
-`request(name)` returns whether KCAPK could start the relevant Android request flow. A `true` return value does not necessarily mean the user granted the permission. Query `has(name)` again after the user returns to the application.
+`request(name)` returns a Promise. It resolves with the effective state after Android finishes the permission flow:
 
-Supported aliases in the bridge are:
+```text
+true  -> granted / available
+false -> denied / unavailable
+```
+
+Example:
+
+```js
+if (!NativeBridge.Android.permissions.has("notifications")) {
+    var granted = await NativeBridge.Android.permissions.request("notifications");
+    if (!granted) {
+        // continue without notifications
+    }
+}
+```
+
+Supported aliases are:
 
 ```text
 notifications
@@ -74,19 +72,13 @@ locationCoarse
 
 A full Android permission string beginning with `android.permission.` may also be passed.
 
-Example:
+`notifications` maps to `POST_NOTIFICATIONS` and is treated as granted before Android API 33.
 
-```js
-if (!NativeBridge.Android.permissions.has("notifications")) {
-    NativeBridge.Android.permissions.request("notifications");
-}
-```
+`exactAlarm` and `exactAlarms` refer to Android exact-alarm special access. Before API 31 this is treated as available. On newer Android versions, KCAPK opens the relevant Settings flow and resolves the Promise after the Activity resumes with the current exact-alarm state.
 
-`notifications` maps to `POST_NOTIFICATIONS` and is treated as granted on Android versions before API 33.
+Only one runtime permission request and one exact-alarm special-access request may be active at a time. A conflicting request rejects with `BUSY`.
 
-`exactAlarm` and `exactAlarms` refer to Android's exact-alarm special access. On Android versions before API 31, this is treated as available.
-
-Important: a permission must also be declared by the generated Android manifest to be usable. KCAPK currently declares the permissions needed by its built-in capabilities. The camera, microphone, and location aliases exist in the bridge implementation but are not currently added to the manifest by default.
+Important: a permission must also be declared in the generated manifest to be usable. KCAPK currently declares permissions required by its built-in capabilities. Camera, microphone, and location aliases exist in the bridge implementation but are not declared by default.
 
 ## Notifications
 
@@ -132,7 +124,7 @@ Supported channel options:
 - `showBadge`: whether the channel may show launcher badges.
 - `sound`: `default`, `none`, or a sound URI.
 
-On Android versions before API 26, channel creation is treated as successful because notification channels do not exist there.
+Before API 26, channel creation is treated as successful because channels do not exist there.
 
 ### Post a notification
 
@@ -161,19 +153,19 @@ Common options:
 - `title`: notification title.
 - `text`: notification body.
 - `subText`: secondary text.
-- `autoCancel`: automatically dismiss after the user opens it. Defaults to `true`.
-- `ongoing`: make the notification ongoing/persistent.
-- `onlyAlertOnce`: avoid repeated alerting when updating the same notification.
+- `autoCancel`: defaults to `true`.
+- `ongoing`: persistent/ongoing state.
+- `onlyAlertOnce`: avoid repeated alerting on updates.
 - `category`: Android notification category.
 - `group`: notification group key.
 - `groupSummary`: whether this notification summarizes a group.
-- `when`: timestamp in Unix epoch milliseconds.
-- `number`: numeric badge/count value.
-- `importance`: used for pre-API-26 priority and for automatic channel creation.
-- `sound`: used for pre-API-26 notifications and for automatic channel creation.
+- `when`: Unix epoch milliseconds.
+- `number`: numeric count/badge value.
+- `importance`: pre-26 priority and automatic-channel importance.
+- `sound`: pre-26 sound and automatic-channel sound.
 - `timeout`: automatic timeout in milliseconds on API 26+.
 
-Progress can be provided as:
+Progress:
 
 ```js
 NativeBridge.Android.notifications.post({
@@ -191,17 +183,7 @@ NativeBridge.Android.notifications.post({
 });
 ```
 
-For indeterminate progress:
-
-```js
-progress: {
-    max: 100,
-    value: 0,
-    indeterminate: true
-}
-```
-
-On Android API 26+, channel sound and importance are channel properties. Once Android creates a channel, posting another notification does not freely redefine those settings; the user also retains control through Android system settings.
+On API 26+, channel sound and importance are channel properties. Once Android creates a channel, reposting notifications does not freely redefine them, and the user retains final control through Android settings.
 
 ### Cancel notifications
 
@@ -209,10 +191,6 @@ On Android API 26+, channel sound and importance are channel properties. Once An
 NativeBridge.Android.notifications.cancel(id);
 NativeBridge.Android.notifications.cancelAll();
 ```
-
-`cancel(id)` cancels one notification by ID.
-
-`cancelAll()` cancels all notifications posted by the application.
 
 ## Alarms
 
@@ -222,9 +200,7 @@ Namespace:
 NativeBridge.Android.alarms
 ```
 
-KCAPK alarms are native Android alarms. They can trigger while the WebView is not alive.
-
-The currently supported alarm action is a notification.
+KCAPK alarms are native Android alarms and can trigger while the WebView is not alive. The current native alarm action is a notification.
 
 ### Check exact-alarm availability
 
@@ -232,17 +208,9 @@ The currently supported alarm action is a notification.
 NativeBridge.Android.alarms.canScheduleExact();
 ```
 
-Returns whether exact alarms can currently be scheduled.
-
-On Android API 31+, exact alarms may require Android's Alarms & reminders special access.
+On API 31+, exact alarms may require Android's Alarms & reminders special access.
 
 ### Schedule an alarm
-
-```js
-NativeBridge.Android.alarms.schedule(options);
-```
-
-Example:
 
 ```js
 NativeBridge.Android.alarms.schedule({
@@ -258,12 +226,12 @@ NativeBridge.Android.alarms.schedule({
 });
 ```
 
-Supported alarm options:
+Supported options:
 
 - `id`: required non-negative alarm ID.
-- `at`: required Unix epoch time in milliseconds.
-- `exact`: whether to request exact scheduling. Defaults to `false`.
-- `allowWhileIdle`: whether the alarm may run while the device is idle. Defaults to the value of `exact`.
+- `at`: required Unix epoch milliseconds.
+- `exact`: defaults to `false`.
+- `allowWhileIdle`: defaults to the value of `exact`.
 - `action`: required native action object.
 
 The supported action is:
@@ -275,11 +243,11 @@ The supported action is:
 }
 ```
 
-If the notification action does not contain its own `id`, KCAPK uses the alarm ID as the notification ID.
+If the action has no notification `id`, KCAPK uses the alarm ID.
 
-Scheduled definitions are persisted by the generated application and future alarms are restored after device boot. Past alarms are discarded during restoration.
+Scheduled definitions are persisted and future alarms are restored after device boot. Past alarms are discarded during restoration.
 
-KCAPK does not implement recurrence rules. Applications should calculate future occurrences and schedule the corresponding native alarm themselves.
+KCAPK does not implement recurrence rules. Applications calculate future occurrences and schedule their native alarms.
 
 ### Cancel alarms
 
@@ -287,8 +255,6 @@ KCAPK does not implement recurrence rules. Applications should calculate future 
 NativeBridge.Android.alarms.cancel(id);
 NativeBridge.Android.alarms.cancelAll();
 ```
-
-Cancelling an alarm also removes its stored definition.
 
 ## Haptics and vibration
 
@@ -298,35 +264,14 @@ Namespace:
 NativeBridge.Android.haptics
 ```
 
-### Check hardware availability
-
 ```js
 NativeBridge.Android.haptics.hasVibrator();
-```
-
-Returns whether Android reports a vibrator.
-
-### Vibrate for a duration
-
-```js
-NativeBridge.Android.haptics.vibrate(milliseconds);
-```
-
-Example:
-
-```js
 NativeBridge.Android.haptics.vibrate(200);
+NativeBridge.Android.haptics.effect("click");
+NativeBridge.Android.haptics.cancel();
 ```
 
-The duration must be greater than zero.
-
-### Predefined haptic effects
-
-```js
-NativeBridge.Android.haptics.effect(name);
-```
-
-Supported names:
+Supported predefined effect names:
 
 ```text
 click
@@ -335,13 +280,7 @@ tick
 heavyClick
 ```
 
-On API 29+ KCAPK uses Android predefined vibration effects. Older Android versions fall back to short duration-based vibrations.
-
-### Cancel vibration
-
-```js
-NativeBridge.Android.haptics.cancel();
-```
+On API 29+ KCAPK uses Android predefined vibration effects. Older versions fall back to duration-based vibrations.
 
 The generated manifest includes `android.permission.VIBRATE`.
 
@@ -356,12 +295,6 @@ NativeBridge.Android.intents
 ### Share
 
 ```js
-NativeBridge.Android.intents.share(options);
-```
-
-Example:
-
-```js
 NativeBridge.Android.intents.share({
     text: "Hello",
     subject: "Optional subject",
@@ -371,25 +304,15 @@ NativeBridge.Android.intents.share({
 });
 ```
 
-Supported options:
-
-- `text`: shared text.
-- `subject`: optional subject.
-- `title`: optional content title.
-- `chooserTitle`: optional Android chooser title.
-- `type`: MIME type. Defaults to `text/plain`.
-
-Returns whether Android could start the Sharesheet intent.
+Supported options are `text`, `subject`, `title`, `chooserTitle`, and MIME `type` (default `text/plain`). The method returns whether Android could start the Sharesheet.
 
 ### Open a URL
 
 ```js
-NativeBridge.Android.intents.openUrl(url);
+NativeBridge.Android.intents.openUrl("https://example.com");
 ```
 
 Only `http` and `https` URLs are accepted.
-
-Returns whether Android could start an activity for the URL.
 
 ### Open application settings
 
@@ -407,43 +330,30 @@ Namespace:
 NativeBridge.Android.systemUI
 ```
 
-### Status bar icon appearance
+Status bar icon appearance:
 
 ```js
 NativeBridge.Android.systemUI.statusBar({ icons: "light" });
 NativeBridge.Android.systemUI.statusBar({ icons: "dark" });
 ```
 
-`light` means light-colored foreground icons. `dark` means dark-colored foreground icons.
-
-Dark status-bar icons require Android API 23+.
-
-### Navigation bar icon appearance
+Navigation bar icon appearance:
 
 ```js
 NativeBridge.Android.systemUI.navigationBar({ icons: "light" });
 NativeBridge.Android.systemUI.navigationBar({ icons: "dark" });
 ```
 
-Dark navigation-bar icons require Android API 26+.
-
-### Hide system bars
+System bars:
 
 ```js
 NativeBridge.Android.systemUI.hideBars();
-```
-
-Hides status and navigation bars using immersive behavior.
-
-### Show system bars
-
-```js
 NativeBridge.Android.systemUI.showBars();
 ```
 
-Restores status and navigation bars.
+Dark status-bar icons require API 23+. Dark navigation-bar icons require API 26+.
 
-These calls control system-bar visibility and icon appearance. On modern edge-to-edge Android versions, the visible bar background is generally application content behind the system bars rather than a separately painted bar color.
+On modern edge-to-edge Android versions, the visible bar background is generally application content behind the system bars rather than a separately painted bar color.
 
 ## Clipboard
 
@@ -453,37 +363,16 @@ Namespace:
 NativeBridge.Android.clipboard
 ```
 
-### Set text
-
 ```js
 NativeBridge.Android.clipboard.set("text");
-```
-
-Returns whether the clipboard service was available and the text was set.
-
-### Get text
-
-```js
 NativeBridge.Android.clipboard.get();
-```
-
-Returns the first clipboard item coerced to text, or an empty string when no value is available.
-
-### Check clipboard content
-
-```js
 NativeBridge.Android.clipboard.hasText();
-```
-
-Returns whether Android reports a primary clipboard item.
-
-### Clear clipboard
-
-```js
 NativeBridge.Android.clipboard.clear();
 ```
 
-On API 28+ KCAPK clears the primary clip directly. Older versions replace it with an empty text clip.
+`get()` returns the first clipboard item coerced to text, or an empty string when unavailable.
+
+On API 28+ `clear()` clears the primary clip directly. Older versions replace it with an empty text clip.
 
 ## Screen wake behavior
 
@@ -493,34 +382,25 @@ Namespace:
 NativeBridge.Android.screen
 ```
 
-### Keep the screen on
-
 ```js
 NativeBridge.Android.screen.keepOn(true);
-```
-
-Adds Android's keep-screen-on window flag to the generated Activity.
-
-### Return to normal timeout behavior
-
-```js
 NativeBridge.Android.screen.keepOn(false);
 ```
 
-Removes the flag.
-
-This applies while the Activity is visible. It is not a background wake lock.
+The flag applies while the generated Activity is visible. It is not a background wake lock.
 
 ## Adding more Android APIs
 
-New Android integrations should follow the same principles:
+New integrations should:
 
 - expose general-purpose primitives rather than application-specific concepts,
-- keep public APIs under `NativeBridge.Android`,
-- use a dedicated Java bridge class when the capability is non-trivial,
-- avoid arbitrary reflection or unrestricted access to Android classes,
-- document permissions and Android-version behavior explicitly,
-- add asynchronous capabilities only through a consistent future Promise/request mechanism.
+- live under `NativeBridge.Android`,
+- use a dedicated Java bridge class when non-trivial,
+- avoid arbitrary reflection or unrestricted Android-class access,
+- document permissions and Android-version behavior,
+- use the shared Promise layer when a result is inherently asynchronous.
+
+Activity-result based APIs such as future file pickers should use the shared async request/result registry rather than feature-specific callback conventions.
 
 ## Next step
 

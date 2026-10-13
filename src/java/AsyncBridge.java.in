@@ -1,0 +1,199 @@
+package @PACKAGE_NAME@;
+
+import android.app.Activity;
+import android.content.Intent;
+import android.webkit.WebView;
+import java.util.Iterator;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicInteger;
+import org.json.JSONObject;
+
+public class AsyncBridge {
+    public interface ActivityResultCallback {
+        void onResult(int resultCode, Intent data);
+    }
+
+    private static final int FIRST_ACTIVITY_REQUEST_CODE = 46000;
+    private static final int LAST_ACTIVITY_REQUEST_CODE = 63999;
+
+    private static final class PendingActivityResult {
+        final long generation;
+        final ActivityResultCallback callback;
+
+        PendingActivityResult(long generation, ActivityResultCallback callback) {
+            this.generation = generation;
+            this.callback = callback;
+        }
+    }
+
+    private final Activity activity;
+    private final WebView webView;
+    private final ConcurrentHashMap<String, Boolean> pending = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<Integer, PendingActivityResult> activityResults = new ConcurrentHashMap<>();
+    private final AtomicInteger nextActivityRequestCode = new AtomicInteger(FIRST_ACTIVITY_REQUEST_CODE);
+    private volatile long generation;
+    private volatile boolean destroyed;
+
+    public AsyncBridge(Activity activity, WebView webView) {
+        this.activity = activity;
+        this.webView = webView;
+    }
+
+    public void setGeneration(long generation) {
+        this.generation = generation;
+        pending.clear();
+        activityResults.clear();
+    }
+
+    public long getGeneration() {
+        return generation;
+    }
+
+    public boolean begin(long requestId, long requestGeneration) {
+        if (destroyed || requestId <= 0L || requestGeneration != generation) {
+            return false;
+        }
+        return pending.putIfAbsent(key(requestId, requestGeneration), Boolean.TRUE) == null;
+    }
+
+    public boolean isPending(long requestId, long requestGeneration) {
+        return !destroyed && pending.containsKey(key(requestId, requestGeneration));
+    }
+
+    public void resolve(long requestId, long requestGeneration, Object value) {
+        try {
+            JSONObject payload = new JSONObject();
+            payload.put("value", value == null ? JSONObject.NULL : value);
+            complete(requestId, requestGeneration, true, payload);
+        } catch (Exception ignored) {
+            reject(requestId, requestGeneration, "INTERNAL_ERROR", "Failed to encode native result");
+        }
+    }
+
+    public void reject(long requestId, long requestGeneration, String code, String message) {
+        reject(requestId, requestGeneration, code, message, null);
+    }
+
+    public void reject(
+        long requestId,
+        long requestGeneration,
+        String code,
+        String message,
+        JSONObject details
+    ) {
+        try {
+            JSONObject payload = new JSONObject();
+            payload.put("code", code == null ? "NATIVE_ERROR" : code);
+            payload.put("message", message == null ? "Native request failed" : message);
+
+            if (details != null) {
+                Iterator<String> keys = details.keys();
+                while (keys.hasNext()) {
+                    String key = keys.next();
+                    if (!"code".equals(key) && !"message".equals(key)) {
+                        payload.put(key, details.opt(key));
+                    }
+                }
+            }
+
+            complete(requestId, requestGeneration, false, payload);
+        } catch (Exception ignored) {
+            completeFallback(requestId, requestGeneration);
+        }
+    }
+
+    public synchronized int registerActivityResult(
+        long requestGeneration,
+        ActivityResultCallback callback
+    ) {
+        if (destroyed || callback == null || requestGeneration != generation) {
+            return -1;
+        }
+
+        int capacity = LAST_ACTIVITY_REQUEST_CODE - FIRST_ACTIVITY_REQUEST_CODE + 1;
+        for (int i = 0; i < capacity; i++) {
+            int code = nextActivityRequestCode.getAndIncrement();
+            if (code > LAST_ACTIVITY_REQUEST_CODE) {
+                nextActivityRequestCode.compareAndSet(code + 1, FIRST_ACTIVITY_REQUEST_CODE + 1);
+                code = FIRST_ACTIVITY_REQUEST_CODE;
+            }
+
+            PendingActivityResult entry = new PendingActivityResult(requestGeneration, callback);
+            if (activityResults.putIfAbsent(code, entry) == null) {
+                return code;
+            }
+        }
+
+        return -1;
+    }
+
+    public void unregisterActivityResult(int requestCode) {
+        activityResults.remove(requestCode);
+    }
+
+    public void onActivityResult(int requestCode, int resultCode, Intent data) {
+        PendingActivityResult entry = activityResults.remove(requestCode);
+        if (entry == null || destroyed || entry.generation != generation) {
+            return;
+        }
+        entry.callback.onResult(resultCode, data);
+    }
+
+    public void destroy() {
+        destroyed = true;
+        pending.clear();
+        activityResults.clear();
+    }
+
+    private void complete(
+        long requestId,
+        long requestGeneration,
+        boolean success,
+        JSONObject payload
+    ) {
+        String requestKey = key(requestId, requestGeneration);
+        if (pending.remove(requestKey) == null || destroyed || requestGeneration != generation) {
+            return;
+        }
+
+        final String payloadJson = JSONObject.quote(payload.toString());
+        final String script =
+            "(function(){var b=window.NativeBridge;" +
+            "if(b&&b.__kcapk){b.__complete(" + requestId + "," + requestGeneration + "," +
+            (success ? "true" : "false") + "," + payloadJson + ");}})();";
+
+        activity.runOnUiThread(new Runnable() {
+            @Override
+            public void run() {
+                if (!destroyed && requestGeneration == generation && !activity.isDestroyed()) {
+                    webView.evaluateJavascript(script, null);
+                }
+            }
+        });
+    }
+
+    private void completeFallback(long requestId, long requestGeneration) {
+        String requestKey = key(requestId, requestGeneration);
+        if (pending.remove(requestKey) == null || destroyed || requestGeneration != generation) {
+            return;
+        }
+
+        final String script =
+            "(function(){var b=window.NativeBridge;" +
+            "if(b&&b.__kcapk){b.__complete(" + requestId + "," + requestGeneration +
+            ",false,'{\"code\":\"INTERNAL_ERROR\",\"message\":\"Native request failed\"}');}})();";
+
+        activity.runOnUiThread(new Runnable() {
+            @Override
+            public void run() {
+                if (!destroyed && requestGeneration == generation && !activity.isDestroyed()) {
+                    webView.evaluateJavascript(script, null);
+                }
+            }
+        });
+    }
+
+    private static String key(long requestId, long requestGeneration) {
+        return requestGeneration + ":" + requestId;
+    }
+}

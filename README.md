@@ -53,6 +53,7 @@ KCAPK does not try to mirror the complete Android API. The bridge is intended to
 - [Configuration](doc/CONFIGURATION.md) - command-line options, environment variables, icons, backgrounds, and output paths.
 - [WebView and trusted origins](doc/WEBVIEW.md) - local and remote content, asset packaging, navigation, and bridge trust boundaries.
 - [NativeBridge](doc/NATIVE_BRIDGE.md) - bridge model, namespaces, security boundary, and return conventions.
+- [Async operations](doc/ASYNC.md) - Promise-based native requests, page generations, lifecycle, and error handling.
 - [Android APIs](doc/ANDROID_APIS.md) - reference for the Android APIs exposed through `NativeBridge.Android.*`.
 - [External binaries](doc/EXTERNAL_BINARIES.md) - package native executables with `--exec`, multi-ABI integration, and `NativeBridge.exec()`.
 - [Release builds](doc/RELEASES.md) - APK/AAB output and release signing.

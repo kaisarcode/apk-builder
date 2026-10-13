@@ -6,58 +6,22 @@ import android.net.Uri;
 import android.webkit.WebResourceRequest;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
+import java.io.BufferedReader;
+import java.io.InputStream;
+import java.io.InputStreamReader;
 
 public class TrustedWebViewClient extends WebViewClient {
-    private static final String NATIVE_BRIDGE_SCRIPT =
-        "window.NativeBridge={"
-        + "exec:function(args){return window.AndroidBridge.exec(JSON.stringify(args));},"
-        + "Android:{"
-        + "showToast:function(message){return window.AndroidBridge.showToast(message);},"
-        + "isOnline:function(){return window.AndroidBridge.isOnline();},"
-        + "permissions:{"
-        + "has:function(name){return window.AndroidBridge.permissionHas(name);},"
-        + "request:function(name){return window.AndroidBridge.permissionRequest(name);}},"
-        + "notifications:{"
-        + "canPost:function(){return window.AndroidBridge.notificationCanPost();},"
-        + "createChannel:function(options){return window.AndroidBridge.notificationCreateChannel(JSON.stringify(options||{}));},"
-        + "post:function(options){return window.AndroidBridge.notificationPost(JSON.stringify(options||{}));},"
-        + "cancel:function(id){return window.AndroidBridge.notificationCancel(id);},"
-        + "cancelAll:function(){return window.AndroidBridge.notificationCancelAll();}},"
-        + "alarms:{"
-        + "canScheduleExact:function(){return window.AndroidBridge.alarmCanScheduleExact();},"
-        + "schedule:function(options){return window.AndroidBridge.alarmSchedule(JSON.stringify(options||{}));},"
-        + "cancel:function(id){return window.AndroidBridge.alarmCancel(id);},"
-        + "cancelAll:function(){return window.AndroidBridge.alarmCancelAll();}},"
-        + "haptics:{"
-        + "hasVibrator:function(){return window.AndroidBridge.hapticHasVibrator();},"
-        + "vibrate:function(milliseconds){return window.AndroidBridge.hapticVibrate(milliseconds);},"
-        + "effect:function(name){return window.AndroidBridge.hapticEffect(name);},"
-        + "cancel:function(){return window.AndroidBridge.hapticCancel();}},"
-        + "intents:{"
-        + "share:function(options){return window.AndroidBridge.intentShare(JSON.stringify(options||{}));},"
-        + "openUrl:function(url){return window.AndroidBridge.intentOpenUrl(url);},"
-        + "openAppSettings:function(){return window.AndroidBridge.intentOpenAppSettings();}},"
-        + "systemUI:{"
-        + "statusBar:function(options){return window.AndroidBridge.systemUIStatusBar(JSON.stringify(options||{}));},"
-        + "navigationBar:function(options){return window.AndroidBridge.systemUINavigationBar(JSON.stringify(options||{}));},"
-        + "hideBars:function(){return window.AndroidBridge.systemUIHideBars();},"
-        + "showBars:function(){return window.AndroidBridge.systemUIShowBars();}},"
-        + "clipboard:{"
-        + "set:function(text){return window.AndroidBridge.clipboardSet(text);},"
-        + "get:function(){return window.AndroidBridge.clipboardGet();},"
-        + "hasText:function(){return window.AndroidBridge.clipboardHasText();},"
-        + "clear:function(){return window.AndroidBridge.clipboardClear();}},"
-        + "screen:{"
-        + "keepOn:function(enabled){return window.AndroidBridge.screenKeepOn(!!enabled);}}"
-        + "}};";
+    private static final String NATIVE_BRIDGE_RESOURCE = "native_bridge";
     private final Context context;
     private final String[] trustedOrigins;
     private final JSBridge bridge;
+    private final String nativeBridgeScript;
 
     public TrustedWebViewClient(Context context, String[] trustedOrigins, JSBridge bridge) {
         this.context = context;
         this.trustedOrigins = trustedOrigins;
         this.bridge = bridge;
+        this.nativeBridgeScript = loadBridgeScript(context);
     }
 
     private boolean openExternally(String url) {
@@ -77,10 +41,15 @@ public class TrustedWebViewClient extends WebViewClient {
         return openExternally(url);
     }
 
-    private void installBridge(WebView view, String url) {
-        if (JSBridge.isTrustedUrl(url, trustedOrigins)) {
-            view.evaluateJavascript(NATIVE_BRIDGE_SCRIPT, null);
+    private void installBridge(WebView view, String url, long generation) {
+        if (!JSBridge.isTrustedUrl(url, trustedOrigins) || nativeBridgeScript.isEmpty()) {
+            return;
         }
+
+        String script = nativeBridgeScript +
+            "\n;if(window.NativeBridge&&window.NativeBridge.__kcapk){" +
+            "window.NativeBridge.__setGeneration(" + generation + ");}";
+        view.evaluateJavascript(script, null);
     }
 
     @Override
@@ -94,14 +63,39 @@ public class TrustedWebViewClient extends WebViewClient {
 
     @Override
     public void onPageStarted(WebView view, String url, android.graphics.Bitmap favicon) {
-        bridge.setCurrentUrl(url);
-        installBridge(view, url);
+        long generation = bridge.beginPage(url);
+        installBridge(view, url, generation);
         super.onPageStarted(view, url, favicon);
     }
 
     @Override
     public void onPageFinished(WebView view, String url) {
-        installBridge(view, url);
+        installBridge(view, url, bridge.getPageGeneration());
         super.onPageFinished(view, url);
+    }
+
+    private static String loadBridgeScript(Context context) {
+        int resourceId = context.getResources().getIdentifier(
+            NATIVE_BRIDGE_RESOURCE,
+            "raw",
+            context.getPackageName()
+        );
+        if (resourceId == 0) {
+            return "";
+        }
+
+        StringBuilder script = new StringBuilder();
+        try (
+            InputStream input = context.getResources().openRawResource(resourceId);
+            BufferedReader reader = new BufferedReader(new InputStreamReader(input))
+        ) {
+            String line;
+            while ((line = reader.readLine()) != null) {
+                script.append(line).append('\n');
+            }
+            return script.toString();
+        } catch (Exception ignored) {
+            return "";
+        }
     }
 }
