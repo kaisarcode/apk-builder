@@ -12,24 +12,24 @@ command-line option > environment variable > built-in default
 
 | Option | Description |
 |---|---|
-| `--display-name <name>` | Application display name. |
-| `--project-name <name>` | Project name and default build directory name. |
-| `--output-path <path>` | Generated project/build directory. |
-| `--package-name <name>` | Android package name. |
-| `--webview-url <url|file>` | Remote URL or local HTML entry file. |
-| `--icon <path|url>` | Local or remote icon source. |
-| `--icon-background <color>` | Adaptive launcher icon background. |
-| `--background <color>` | Activity, WebView, and system-bar startup background. |
-| `--trusted-origin <origin>` | Additional trusted bridge origin; repeatable. |
-| `--api <name>` | Include one optional NativeBridge Android API; repeatable. |
-| `--permission <name>` | Declare an optional Android permission; repeatable. |
-| `--share-target <mime>` | Accept incoming Android shares for a MIME type; repeatable. Requires `--api intents`. |
-| `--fullscreen` | Enable fullscreen mode. |
-| `--version-code <N>` | Android version code. |
-| `--version-name <name>` | Android version name. |
-| `--exec <path>` | Package one native executable; repeatable. |
-| `--clean` | Regenerate the debug keystore. |
-| `--release` | Build the debug APK and an AAB. |
+| --display-name <name> | Application display name. |
+| --project-name <name> | Project name and default build directory name. |
+| --output-path <path> | Generated project/build directory. |
+| --package-name <name> | Android package name. |
+| --webview-url <url|file> | Remote URL or local HTML entry file. |
+| --icon <path|url> | Local or remote icon source. |
+| --icon-background <color> | Adaptive launcher icon background. |
+| --background <color> | Activity, WebView, and system-bar startup background. |
+| --trusted-origin <origin> | Additional trusted bridge origin; repeatable. |
+| --api <name> | Include one optional NativeBridge Android API; repeatable. |
+| --permission <name> | Declare an optional Android permission; repeatable. |
+| --share-target <mime> | Accept incoming Android shares for a MIME type; repeatable. Requires --api intents. |
+| --fullscreen | Enable fullscreen mode. |
+| --version-code <N> | Android version code. |
+| --version-name <name> | Android version name. |
+| --exec <path> | Package one native executable; repeatable. |
+| --clean | Regenerate the debug keystore. |
+| --release | Build the debug APK and an AAB. |
 
 ## Main environment variables
 
