@@ -38,7 +38,7 @@ KCAPK is intentionally small. `build.sh` orchestrates the build while reusable A
 
 The generated application contains a normal Android Activity with a WebView. KCAPK adds two optional integration layers on top of that:
 
-- `NativeBridge.Android.*` exposes a curated set of useful Android platform capabilities to trusted WebView content.
+- `NativeBridge.Android.*` exposes a curated set of useful Android platform capabilities to trusted WebView content. Only the core is present by default; optional capabilities are selected with repeatable `--api` options.
 - `NativeBridge.exec()` executes only native binaries explicitly packaged with `--exec`.
 
 These are kept separate deliberately: Android framework integrations are namespaced under `NativeBridge.Android`, while external executables remain a KCAPK capability at the top level.
@@ -50,11 +50,12 @@ KCAPK does not try to mirror the complete Android API. The bridge is intended to
 - [Getting started](doc/GETTING_STARTED.md) - build and install a first KCAPK application.
 - [Architecture](doc/ARCHITECTURE.md) - understand the builder, generated application, templates, and bridge layers.
 - [Building](doc/BUILDING.md) - requirements, Android SDK setup, build outputs, and supported targets.
-- [Configuration](doc/CONFIGURATION.md) - command-line options, environment variables, icons, backgrounds, and output paths.
+- [Configuration](doc/CONFIGURATION.md) - command-line options, API selection, permissions, icons, backgrounds, and output paths.
 - [WebView and trusted origins](doc/WEBVIEW.md) - local and remote content, asset packaging, navigation, and bridge trust boundaries.
 - [NativeBridge](doc/NATIVE_BRIDGE.md) - bridge model, namespaces, security boundary, and return conventions.
 - [Async operations](doc/ASYNC.md) - Promise-based native requests, page generations, lifecycle, and error handling.
-- [Android APIs](doc/ANDROID_APIS.md) - reference for the Android APIs exposed through `NativeBridge.Android.*`.
+- [Android APIs](doc/ANDROID_APIS.md) - overview and build-time catalog for `NativeBridge.Android.*`.
+- [Detailed Android API reference](doc/apis/README.md) - one page per optional Android capability with activation, usage, permissions, and platform behavior.
 - [External binaries](doc/EXTERNAL_BINARIES.md) - package native executables with `--exec`, multi-ABI integration, and `NativeBridge.exec()`.
 - [Release builds](doc/RELEASES.md) - APK/AAB output and release signing.
 - [Testing](doc/TESTING.md) - run the integration test application and validate generated output.

@@ -2,7 +2,9 @@
 
 KCAPK uses one Promise-based request layer for native operations whose result is not available immediately.
 
-The public API does not expose request IDs or callback objects. Application code uses normal JavaScript Promises:
+The async infrastructure is generated only when the selected build needs it: `--exec`, `--api permissions`, `--api files`, `--api apps`, or `--api resources`. A core-only build does not include `AsyncBridge`.
+
+The public API does not expose request IDs or callback objects. Application code uses normal JavaScript Promises when the corresponding capability is enabled:
 
 ```js
 var output = await NativeBridge.exec(["mytool", "status"]);
@@ -34,6 +36,8 @@ NativeBridge.Android.apps.icon(...)
 NativeBridge.Android.resources.describe(...)
 ```
 
+`NativeBridge.exec()` exists only when at least one `--exec` is packaged. Android async APIs exist only when their corresponding `--api` is selected.
+
 Immediate operations remain synchronous. KCAPK does not create duplicate `foo()` / `fooAsync()` APIs.
 
 ## Request flow
@@ -55,7 +59,7 @@ The request IDs are internal implementation details and are not part of the publ
 
 ## Page generations
 
-Each top-level page load receives a new generation number.
+Each top-level page load receives a new generation number when async infrastructure is present.
 
 A native request belongs to the page generation that created it. If navigation starts before the request completes, KCAPK drops the stale native result rather than delivering it into a different page.
 
@@ -125,9 +129,9 @@ Additional APIs may define more specific codes while keeping the same Promise er
 
 ## External executables
 
-`NativeBridge.exec()` always returns a Promise.
+`NativeBridge.exec()` always returns a Promise when executables are packaged.
 
-Native processes run outside the JavaScript bridge thread in a bounded worker pool, so JavaScript no longer waits inside the synchronous `addJavascriptInterface` call while the process executes.
+Native processes run outside the JavaScript bridge thread in a bounded worker pool, so JavaScript does not wait inside the synchronous `addJavascriptInterface` call while the process executes.
 
 Multiple executions can be pending concurrently:
 
@@ -146,12 +150,20 @@ See [External binaries](EXTERNAL_BINARIES.md) for the complete executable integr
 
 ## Permissions
 
-Permission declaration and permission granting are separate operations.
+The runtime permissions API requires:
+
+```sh
+--api permissions
+```
+
+Permission declaration and permission granting remain separate operations.
 
 Build-time declaration uses repeatable `--permission` options:
 
 ```sh
-./build.sh --permission camera
+./build.sh \
+    --api permissions \
+    --permission camera
 ```
 
 Runtime access then uses:
@@ -160,11 +172,7 @@ Runtime access then uses:
 var granted = await NativeBridge.Android.permissions.request("camera");
 ```
 
-If Android requires the permission but it was not declared in the generated manifest, the Promise rejects with:
-
-```text
-PERMISSION_NOT_DECLARED
-```
+If Android requires the permission but it was not declared in the generated Manifest, the Promise rejects with `PERMISSION_NOT_DECLARED`.
 
 When declared, the Promise resolves to the effective permission state:
 
@@ -177,13 +185,13 @@ Runtime permissions resolve from Android's permission-result callback.
 
 Special access such as exact alarms is checked again when the Activity resumes after returning from Android Settings.
 
-Only one runtime permission dialog and one exact-alarm settings request are allowed to be active at a time. A conflicting request rejects with `BUSY`.
+Only one runtime permission dialog and one exact-alarm settings request may be active at a time. A conflicting request rejects with `BUSY`.
 
-See [Configuration](CONFIGURATION.md) for build-time permission declaration and [Android APIs](ANDROID_APIS.md) for the runtime API.
+See [Permissions](apis/permissions.md).
 
 ## File picker
 
-`NativeBridge.Android.files.open()` uses Android's document picker and resolves through the shared activity-result registry:
+With `--api files`, `NativeBridge.Android.files.open()` uses Android's document picker and resolves through the shared activity-result registry:
 
 ```js
 var file = await NativeBridge.Android.files.open({ type: "image/*" });
@@ -193,26 +201,23 @@ The Promise resolves with `null` when the user cancels. Otherwise it resolves wi
 
 KCAPK does not read or copy the selected file as part of the picker operation.
 
-## Launcher app data
+See [Files](apis/files.md).
 
-`NativeBridge.Android.apps.list()` performs launcher-app discovery outside the JavaScript bridge thread and resolves through the same Promise infrastructure:
+## Launcher app data and resources
+
+With `--api apps`, launcher discovery and icon-resource identity are asynchronous:
 
 ```js
 var apps = await NativeBridge.Android.apps.list();
-```
-
-Icons are deliberately excluded from that list. `apps.icon()` only identifies the Android resource used by the launcher activity:
-
-```js
 var icon = await NativeBridge.Android.apps.icon(
     apps[0].packageName,
     apps[0].activityName
 );
 ```
 
-It returns the package, launcher activity, and resource ID. It does not expand or transform the Android resource.
+Icons are deliberately excluded from the list. `apps.icon()` returns package/activity/resource identity only.
 
-Generic Android resource metadata is handled separately:
+With `--api resources`, generic Android resource metadata is handled independently:
 
 ```js
 var resource = await NativeBridge.Android.resources.describe(
@@ -221,17 +226,15 @@ var resource = await NativeBridge.Android.resources.describe(
 );
 ```
 
-The resource bridge can return names, type, `android.resource://` URI, density, and the APK resource path when Android exposes one. It does not rasterize, decode, copy, or otherwise interpret the resource.
+The resources API does not rasterize, decode, copy, or otherwise interpret the resource.
 
-The synchronous `apps.launch()`, `apps.homeEnabled()`, `apps.setHomeEnabled()`, and `apps.openHomeSettings()` methods remain immediate Android operations.
+See [Apps and launcher](apis/apps.md) and [Resources](apis/resources.md).
 
 ## Activity results
 
-The async layer maintains a request-code registry for Android activity results.
+When an enabled async feature needs Android activity results, `MainActivity` forwards `onActivityResult()` to the shared registry. The file picker is currently the public API that consumes this mechanism directly.
 
-`MainActivity` forwards `onActivityResult()` to the bridge. The file picker is the first public API using this registry. Future directory selection, camera flows, or other Android activities that return data should use the same mechanism.
-
-This keeps those APIs on the same Promise mechanism rather than adding feature-specific callback conventions.
+This keeps future directory selection, camera flows, or other Android activities on the same Promise mechanism rather than adding feature-specific callback conventions.
 
 ## UI-thread delivery
 
@@ -248,7 +251,8 @@ A new async bridge API should:
 3. keep the request ID and page generation associated with the operation,
 4. resolve or reject through the shared completion mechanism,
 5. stop or discard stale work when the page changes when practical,
-6. document cancellation and lifecycle behavior.
+6. participate in build-time dependency selection,
+7. document cancellation and lifecycle behavior.
 
 The public API should expose only the natural Promise-returning method, not the internal request machinery.
 

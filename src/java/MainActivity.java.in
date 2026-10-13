@@ -50,12 +50,15 @@ public class MainActivity extends Activity {
         webView.setVerticalScrollBarEnabled(false);
 
         bridge = new JSBridge(this, webView, TRUSTED_ORIGINS);
+        // @KCAPK_API:intents@
         bridge.onNewIntent(getIntent());
+        // @KCAPK_END_API@
         webView.setWebViewClient(new TrustedWebViewClient(this, TRUSTED_ORIGINS, bridge));
         webView.addJavascriptInterface(bridge, JS_INTERFACE_NAME);
         webView.loadUrl(WEBVIEW_URL);
     }
 
+    // @KCAPK_API:intents@
     @Override
     protected void onNewIntent(Intent intent) {
         super.onNewIntent(intent);
@@ -64,7 +67,9 @@ public class MainActivity extends Activity {
             bridge.onNewIntent(intent);
         }
     }
+    // @KCAPK_END_API@
 
+    // @KCAPK_API:permissions@
     @Override
     public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] grantResults) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults);
@@ -72,7 +77,9 @@ public class MainActivity extends Activity {
             bridge.onRequestPermissionsResult(requestCode, permissions, grantResults);
         }
     }
+    // @KCAPK_END_API@
 
+    // @KCAPK_API:async@
     @Override
     protected void onActivityResult(int requestCode, int resultCode, Intent data) {
         super.onActivityResult(requestCode, resultCode, data);
@@ -80,7 +87,9 @@ public class MainActivity extends Activity {
             bridge.onActivityResult(requestCode, resultCode, data);
         }
     }
+    // @KCAPK_END_API@
 
+    // @KCAPK_API:permissions@
     @Override
     protected void onResume() {
         super.onResume();
@@ -88,6 +97,7 @@ public class MainActivity extends Activity {
             bridge.onResume();
         }
     }
+    // @KCAPK_END_API@
 
     @Override
     protected void onDestroy() {

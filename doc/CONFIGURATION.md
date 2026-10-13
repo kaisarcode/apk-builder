@@ -21,8 +21,9 @@ command-line option > environment variable > built-in default
 | `--icon-background <color>` | Adaptive launcher icon background. |
 | `--background <color>` | Activity, WebView, and system-bar startup background. |
 | `--trusted-origin <origin>` | Additional trusted bridge origin; repeatable. |
+| `--api <name>` | Include one optional NativeBridge Android API; repeatable. |
 | `--permission <name>` | Declare an optional Android permission; repeatable. |
-| `--share-target <mime>` | Accept incoming Android shares for a MIME type; repeatable. |
+| `--share-target <mime>` | Accept incoming Android shares for a MIME type; repeatable. Requires `--api intents`. |
 | `--fullscreen` | Enable fullscreen mode. |
 | `--version-code <N>` | Android version code. |
 | `--version-name <name>` | Android version name. |
@@ -121,7 +122,7 @@ KCAPK generates raster launcher assets for the standard Android densities and ad
 ./build.sh --fullscreen
 ```
 
-The generated Activity starts in fullscreen mode. Runtime system-bar control is also available through `NativeBridge.Android.systemUI`; see [Android APIs](ANDROID_APIS.md).
+The generated Activity starts in fullscreen mode. Runtime system-bar control is available only when the app is also built with `--api system-ui`; see [System UI](apis/system-ui.md).
 
 ## Trusted origins
 
@@ -140,12 +141,59 @@ The `TRUSTED_ORIGINS` environment variable remains available as a whitespace-sep
 
 See [WebView and trusted origins](WEBVIEW.md) for the trust model.
 
+## NativeBridge API selection
+
+Only the core bridge is included by default. Core currently exposes:
+
+```js
+NativeBridge.Android.showToast(...)
+```
+
+Optional Android APIs are added with repeatable `--api` options:
+
+```sh
+./build.sh \
+    --api network \
+    --api notifications \
+    --api clipboard
+```
+
+Supported API names are:
+
+```text
+network
+permissions
+notifications
+alarms
+haptics
+intents
+files
+apps
+resources
+system-ui
+clipboard
+screen
+```
+
+`systemUI` is also accepted as an alias for `system-ui`, but `system-ui` is the canonical command-line spelling.
+
+Disabled APIs are removed from the generated Java sources and from the generated JavaScript NativeBridge wrapper. Their API-specific Manifest entries are omitted as well.
+
+Internal dependencies are resolved automatically. For example, alarms include the native notification implementation needed by the alarm receiver without exposing the public notifications namespace unless `--api notifications` was also requested.
+
+`NativeBridge.exec()` is separate from Android API selection and is generated automatically when at least one `--exec` binary is packaged.
+
+See [Android APIs](ANDROID_APIS.md) for the catalog and [API reference](apis/README.md) for detailed pages.
+
 ## Android permissions
+
+API selection and Android permission declaration are independent.
 
 Optional permissions are declared at build time with repeatable `--permission` options:
 
 ```sh
 ./build.sh \
+    --api permissions \
     --permission notifications \
     --permission camera \
     --permission locationCoarse
@@ -172,39 +220,42 @@ KCAPK also accepts explicit Android permission names:
 
 Aliases are resolved to `<uses-permission>` entries in the generated `AndroidManifest.xml`. Duplicate permissions are emitted only once.
 
-The following base permissions remain declared automatically because they support built-in KCAPK behavior:
+`android.permission.INTERNET` remains part of the base application because KCAPK supports remote WebView content.
+
+Some APIs add the normal permissions required by their own implementation automatically:
 
 ```text
-android.permission.INTERNET
-android.permission.ACCESS_NETWORK_STATE
-android.permission.RECEIVE_BOOT_COMPLETED
-android.permission.VIBRATE
+--api network   -> android.permission.ACCESS_NETWORK_STATE
+--api alarms    -> android.permission.RECEIVE_BOOT_COMPLETED
+--api haptics   -> android.permission.VIBRATE
 ```
 
-`POST_NOTIFICATIONS` and `SCHEDULE_EXACT_ALARM` are optional and are not declared unless requested with `--permission notifications` or `--permission exactAlarm`.
+Sensitive or optional permissions such as `POST_NOTIFICATIONS`, `SCHEDULE_EXACT_ALARM`, camera, microphone, and location are not added merely because a related API is present. Declare them explicitly with `--permission` when the application needs them.
 
-Runtime permission requests are separate from build-time declaration. For example:
+Runtime permission requests require `--api permissions`. For example:
 
 ```js
 var granted = await NativeBridge.Android.permissions.request("camera");
 ```
 
-requires the APK to have been built with:
+requires both the permissions API and a Manifest declaration:
 
 ```sh
+--api permissions \
 --permission camera
 ```
 
-If the permission is not declared, the Promise rejects with `PERMISSION_NOT_DECLARED` on Android versions where that permission is required.
+If a permission is not declared, the Promise rejects with `PERMISSION_NOT_DECLARED` on Android versions where that permission is required.
 
-See [Android APIs](ANDROID_APIS.md) for runtime permission handling.
+See [Permissions](apis/permissions.md).
 
 ## Incoming shares
 
-Incoming Android Sharesheet support is enabled at build time with repeatable `--share-target` options:
+Incoming Android Sharesheet support requires the intents API plus repeatable `--share-target` options:
 
 ```sh
 ./build.sh \
+    --api intents \
     --share-target 'image/*' \
     --share-target 'application/pdf'
 ```
@@ -214,7 +265,9 @@ KCAPK adds `ACTION_SEND` and `ACTION_SEND_MULTIPLE` intent filters for those MIM
 A universal receiver can be built with:
 
 ```sh
-./build.sh --share-target '*/*'
+./build.sh \
+    --api intents \
+    --share-target '*/*'
 ```
 
 Android supports `*/*`, but it should normally be reserved for applications that intentionally accept arbitrary content. KCAPK's test application uses it to validate generic incoming file shares.
@@ -227,7 +280,7 @@ Application code can consume the pending share with:
 var share = NativeBridge.Android.intents.consumeShare();
 ```
 
-See [Android APIs](ANDROID_APIS.md) for the returned object.
+See [Intents](apis/intents.md).
 
 ## Native executables
 

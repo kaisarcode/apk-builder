@@ -1,6 +1,6 @@
 # Testing
 
-KCAPK includes an integration test that builds a real generated Android application and validates key packaging and bridge behavior.
+KCAPK includes an integration test that builds generated Android applications and validates key packaging, API-selection, and bridge behavior.
 
 ## Run the test
 
@@ -10,30 +10,42 @@ From the repository root:
 sh ./tests/test.sh
 ```
 
-The generated test APK is written to:
+The generated full-feature test APK is written to:
 
 ```text
 tests/test.apk
 ```
 
-The temporary generated Android project is created outside `tests/` and removed after the test completes.
+Temporary generated Android projects are created outside `tests/` and removed after the test completes.
 
 ## What the host-side test validates
 
-The integration script checks that KCAPK can:
+The script performs two builds.
 
-- generate the Android project,
-- compile the current Java bridge classes,
-- generate the standalone NativeBridge JavaScript resource,
-- include the Promise request/completion layer,
-- generate `AsyncBridge` and `ExecBridge`,
-- forward permission and activity results from `MainActivity`,
-- include required Android permissions,
-- include alarm receivers,
+The full-feature build explicitly enables every optional `NativeBridge.Android` API. It validates that KCAPK can:
+
+- generate the selected Java bridge classes and JavaScript namespaces,
+- include shared Promise infrastructure for asynchronous capabilities,
+- forward permission, activity-result, and incoming-intent lifecycle events when required,
+- include API-specific Manifest permissions and components,
+- include requested optional Android permissions,
+- include incoming share filters,
+- include launcher/Home integration,
 - package external executables for multiple ABIs,
 - produce the final APK.
 
-The script verifies that `NativeBridge.exec()` and `NativeBridge.Android.permissions.request()` are wired through the asynchronous request layer rather than through synchronous return values.
+The script verifies that asynchronous APIs such as `NativeBridge.exec()`, permission requests, file selection, app discovery, icon-resource lookup, and Android resource lookup are wired through the shared request layer.
+
+The second build uses no `--api` and no `--exec`. It validates the opposite side of the selection model:
+
+- core `NativeBridge.Android.showToast()` remains available,
+- optional JavaScript namespaces are absent,
+- optional bridge classes and `AsyncBridge` are not generated,
+- `NativeBridge.exec()` is absent,
+- network, boot, and vibration permissions are not added automatically,
+- alarm receivers, incoming-share filters, and the Home activity alias are absent.
+
+This core-only build guards against regressions that would silently reintroduce native surface or APK bloat.
 
 ## Native executable fixtures
 
@@ -51,23 +63,26 @@ tests/fixtures/exec.c
 
 The integration test does not compile that C source. Prebuilt Android fixtures are included so running the test does not require an Android NDK or C compiler.
 
-The test packages them through `--exec` and verifies the resulting APK entries.
+The full build packages them through `--exec` and verifies the resulting APK entries.
 
 See [External binaries](EXTERNAL_BINARIES.md) for the integration model.
 
 ## Test application
 
-`tests/index.html` is a small WebView application designed to exercise the bridge on a real Android device.
+`tests/index.html` is a small WebView application designed to exercise the fully enabled bridge on a real Android device.
 
-Its controls test operations such as:
+Its controls cover:
 
 - asynchronous packaged executable execution,
-- two concurrent executable requests with `Promise.all`,
+- concurrent executable requests with `Promise.all`,
 - Android notification permission results,
 - network-state queries,
 - vibration and haptics,
 - clipboard round trips,
-- Android Sharesheet integration,
+- document picking and file sharing,
+- incoming Android shares,
+- launcher-app discovery and launching,
+- Home launcher candidacy/settings,
 - keep-screen-on behavior.
 
 Interactive results are surfaced with Android toasts.
@@ -90,18 +105,14 @@ The async layer should be manually checked for:
 
 - `await NativeBridge.exec()` resolving with executable output,
 - parallel executable requests resolving independently,
-- notification permission requests resolving only after the Android result,
+- notification permission requests resolving only after Android returns a result,
+- file picker cancellation and selection,
 - page navigation not receiving stale native completions,
 - pending native processes being cleaned up when the Activity is destroyed.
 
-Other device-dependent checks include:
+Other device-dependent checks include vibration hardware, exact-alarm special access, Sharesheet behavior, launcher/Home behavior, and system bars across Android versions.
 
-- vibration hardware,
-- exact-alarm special access,
-- Sharesheet availability,
-- system-bar behavior across Android versions.
-
-When adding a new asynchronous Android bridge API, update both host-side generated-source checks and the test application when practical.
+When adding a NativeBridge Android API, update its `doc/apis/` reference page and add both positive selection and pruning coverage when practical.
 
 ## Next step
 

@@ -6,6 +6,16 @@ It is intentionally small and explicit. KCAPK does not expose arbitrary Java ref
 
 ## Public structure
 
+The default build exposes only the core Android bridge:
+
+```text
+NativeBridge
+└── Android
+    └── showToast(...)
+```
+
+Optional Android APIs are added with repeatable `--api` options. A fully enabled build can expose:
+
 ```text
 NativeBridge
 ├── exec(...)
@@ -27,14 +37,17 @@ NativeBridge
 
 The separation is deliberate:
 
-- `NativeBridge.exec()` is a KCAPK facility for explicitly packaged native executables.
-- `NativeBridge.Android.*` contains Android framework integrations.
+- `NativeBridge.exec()` is a KCAPK facility for explicitly packaged native executables and is generated only when `--exec` is used.
+- `NativeBridge.Android.showToast()` is part of the always-present core.
+- other `NativeBridge.Android.*` capabilities are compiled only when their `--api` option is selected.
 
-This prevents Android APIs from turning the top-level namespace into an unstructured collection of unrelated methods.
+Disabled APIs are absent rather than exposed as methods that merely fail. Their dedicated Java bridge classes are also left out of the generated project when they are not needed.
+
+See [Android APIs](ANDROID_APIS.md) and the detailed [API reference](apis/README.md).
 
 ## Trust boundary
 
-The bridge is available only while KCAPK considers the current top-level WebView page trusted.
+API selection does not replace origin trust checks. The bridge is available only while KCAPK considers the current top-level WebView page trusted.
 
 Packaged local assets are trusted automatically. Remote applications use origin matching and optional `--trusted-origin` entries.
 
@@ -45,6 +58,12 @@ See [WebView and trusted origins](WEBVIEW.md).
 Methods that can produce an immediate result remain synchronous:
 
 ```js
+NativeBridge.Android.showToast("Saved");
+```
+
+When the corresponding APIs are enabled, examples include:
+
+```js
 var online = NativeBridge.Android.isOnline();
 var value = NativeBridge.Android.clipboard.get();
 var opened = NativeBridge.Android.intents.openUrl("https://example.com");
@@ -53,9 +72,11 @@ var opened = NativeBridge.Android.intents.openUrl("https://example.com");
 Operations that wait for native work or user interaction return Promises:
 
 ```js
-var output = await NativeBridge.exec(["mytool", "status"]);
 var granted = await NativeBridge.Android.permissions.request("notifications");
+var file = await NativeBridge.Android.files.open({ type: "*/*" });
 ```
+
+`NativeBridge.exec()` also returns a Promise when external executables are packaged.
 
 KCAPK does not provide separate sync and async variants of the same operation. An operation uses a Promise when its result is inherently deferred.
 
@@ -65,7 +86,7 @@ The Promise/request mechanism, page-generation protection, lifecycle behavior, a
 
 Synchronous Android bridge methods generally return `false` when an immediate operation cannot be performed and empty strings when a string value is unavailable.
 
-Asynchronous operations reject their Promise with a JavaScript `Error`. KCAPK adds a stable `code` property and may attach operation-specific fields such as an executable `exitCode` or captured `output`.
+Asynchronous operations reject their Promise with a JavaScript `Error`. KCAPK adds a stable `code` property and may attach operation-specific fields.
 
 Example:
 
@@ -78,9 +99,20 @@ try {
 }
 ```
 
-## Android APIs
+## API selection and permissions
 
-The complete current API exposed under `NativeBridge.Android` is documented separately in [Android APIs](ANDROID_APIS.md).
+API selection and Android permissions are independent build concerns:
+
+```sh
+./build.sh \
+    --api permissions \
+    --api notifications \
+    --permission notifications
+```
+
+`--api notifications` includes the notification API. `--api permissions` includes the runtime permission API. `--permission notifications` declares the Android notification permission.
+
+See [Configuration](CONFIGURATION.md).
 
 ## External executables
 
@@ -88,9 +120,11 @@ Packaging native programs, ABI handling, the executable whitelist, and the Promi
 
 ## Implementation boundary
 
-The public JavaScript wrapper lives as a generated Android raw resource rather than as a Java string. Java bridge classes implement the native side, while the JavaScript resource defines the public namespace and Promise registry.
+The JavaScript wrapper is generated from `src/res/raw/native_bridge.js.in`. Build-time API selection removes namespaces that were not requested.
 
-This keeps the JavaScript contract readable and allows future asynchronous Android APIs to share one request mechanism instead of inventing per-feature callbacks.
+Java source templates use the same API-selection model, so omitted public APIs do not leave their bridge implementation classes in the generated project unless another selected capability needs one internally.
+
+The shared async infrastructure is included automatically only when selected features require it.
 
 ## Next step
 

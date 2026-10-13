@@ -17,14 +17,6 @@
     var pending = Object.create(null);
     var nextRequestId = 1;
 
-    /**
-     * Creates a standardized error object for native bridge failures.
-     *
-     * @param {string} code - Error code identifier.
-     * @param {string} message - Human-readable error message.
-     * @param {Object} [details] - Additional error details.
-     * @return {Error} Configured error object.
-     */
     function makeError(code, message, details) {
         var error = new Error(message || "Native request failed");
         error.code = code || "NATIVE_ERROR";
@@ -40,13 +32,6 @@
         return error;
     }
 
-    /**
-     * Rejects all pending requests with the specified error.
-     *
-     * @param {string} code - Error code identifier.
-     * @param {string} message - Human-readable error message.
-     * @return {void}
-     */
     function rejectAll(code, message) {
         Object.keys(pending).forEach(function (id) {
             var request = pending[id];
@@ -55,13 +40,6 @@
         });
     }
 
-    /**
-     * Initiates an asynchronous native request with a starter function.
-     *
-     * @param {Function} starter - Function called with (requestId, generation)
-     * to start the request.
-     * @return {Promise} Promise resolved/rejected based on native response.
-     */
     function asyncRequest(starter) {
         return new Promise(function (resolve, reject) {
             var requestId = nextRequestId++;
@@ -94,15 +72,6 @@
         });
     }
 
-    /**
-     * Completes a pending request with the native response.
-     *
-     * @param {number} requestId - Identifier of the pending request.
-     * @param {number} generation - Generation number for page change detection.
-     * @param {boolean} success - Whether the native call succeeded.
-     * @param {string} [payloadJson] - JSON payload from native side.
-     * @return {void}
-     */
     function complete(requestId, generation, success, payloadJson) {
         var request = pending[requestId];
         if (!request || request.generation !== generation || api.__generation !== generation) {
@@ -140,19 +109,21 @@
         },
         __complete: complete,
 
+        // @KCAPK_API:exec@
         exec: function (args) {
             return asyncRequest(function (requestId, generation) {
                 return window.AndroidBridge.exec(requestId, generation, JSON.stringify(args || []));
             });
         },
+        // @KCAPK_END_API@
 
         Android: {
-            showToast: function (message) {
-                return window.AndroidBridge.showToast(message);
-            },
+            // @KCAPK_API:network@
             isOnline: function () {
                 return window.AndroidBridge.isOnline();
             },
+            // @KCAPK_END_API@
+            // @KCAPK_API:permissions@
             permissions: {
                 has: function (name) {
                     return window.AndroidBridge.permissionHas(name);
@@ -163,6 +134,8 @@
                     });
                 }
             },
+            // @KCAPK_END_API@
+            // @KCAPK_API:notifications@
             notifications: {
                 canPost: function () {
                     return window.AndroidBridge.notificationCanPost();
@@ -180,6 +153,8 @@
                     return window.AndroidBridge.notificationCancelAll();
                 }
             },
+            // @KCAPK_END_API@
+            // @KCAPK_API:alarms@
             alarms: {
                 canScheduleExact: function () {
                     return window.AndroidBridge.alarmCanScheduleExact();
@@ -194,6 +169,8 @@
                     return window.AndroidBridge.alarmCancelAll();
                 }
             },
+            // @KCAPK_END_API@
+            // @KCAPK_API:haptics@
             haptics: {
                 hasVibrator: function () {
                     return window.AndroidBridge.hapticHasVibrator();
@@ -208,6 +185,8 @@
                     return window.AndroidBridge.hapticCancel();
                 }
             },
+            // @KCAPK_END_API@
+            // @KCAPK_API:intents@
             intents: {
                 share: function (options) {
                     return window.AndroidBridge.intentShare(JSON.stringify(options || {}));
@@ -230,6 +209,8 @@
                     }
                 }
             },
+            // @KCAPK_END_API@
+            // @KCAPK_API:files@
             files: {
                 open: function (options) {
                     return asyncRequest(function (requestId, generation) {
@@ -241,6 +222,8 @@
                     });
                 }
             },
+            // @KCAPK_END_API@
+            // @KCAPK_API:apps@
             apps: {
                 list: function () {
                     return asyncRequest(function (requestId, generation) {
@@ -270,10 +253,12 @@
                     return window.AndroidBridge.appsOpenHomeSettings();
                 }
             },
+            // @KCAPK_END_API@
+            // @KCAPK_API:resources@
             resources: {
                 describe: function (packageName, resourceId) {
                     return asyncRequest(function (requestId, generation) {
-                        return window.AndroidBridge.resourceDescribe(
+                        return window.AndroidBridge.resourcesDescribe(
                             requestId,
                             generation,
                             packageName,
@@ -282,6 +267,8 @@
                     });
                 }
             },
+            // @KCAPK_END_API@
+            // @KCAPK_API:systemUI@
             systemUI: {
                 statusBar: function (options) {
                     return window.AndroidBridge.systemUIStatusBar(JSON.stringify(options || {}));
@@ -296,6 +283,8 @@
                     return window.AndroidBridge.systemUIShowBars();
                 }
             },
+            // @KCAPK_END_API@
+            // @KCAPK_API:clipboard@
             clipboard: {
                 set: function (text) {
                     return window.AndroidBridge.clipboardSet(text);
@@ -310,10 +299,16 @@
                     return window.AndroidBridge.clipboardClear();
                 }
             },
+            // @KCAPK_END_API@
+            // @KCAPK_API:screen@
             screen: {
                 keepOn: function (enabled) {
                     return window.AndroidBridge.screenKeepOn(!!enabled);
                 }
+            },
+            // @KCAPK_END_API@
+            showToast: function (message) {
+                return window.AndroidBridge.showToast(message);
             }
         }
     };

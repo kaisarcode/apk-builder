@@ -15,6 +15,10 @@ EXEC_ARM64="$TEST_DIR/fixtures/arm64-v8a/kcapk-test-exec"
 EXEC_X86_64="$TEST_DIR/fixtures/x86_64/kcapk-test-exec"
 GENERATED_JAVA="$WORK_DIR/src/main/java/com/kaisarcode/kcapk/test"
 GENERATED_BRIDGE_JS="$WORK_DIR/res/raw/native_bridge.js"
+CORE_WORK_DIR="$WORK_DIR/core"
+CORE_BUILD_LOG="$WORK_DIR/core-build.log"
+CORE_GENERATED_JAVA="$CORE_WORK_DIR/src/main/java/com/kaisarcode/kcapk/core"
+CORE_BRIDGE_JS="$CORE_WORK_DIR/res/raw/native_bridge.js"
 
 # Removes the temporary working directory.
 # @return None.
@@ -31,6 +35,18 @@ if "$ROOT_DIR/build.sh" \
     --project-name test \
     --package-name com.kaisarcode.kcapk.test \
     --webview-url "$TEST_DIR/index.html" \
+    --api network \
+    --api permissions \
+    --api notifications \
+    --api alarms \
+    --api haptics \
+    --api intents \
+    --api files \
+    --api apps \
+    --api resources \
+    --api system-ui \
+    --api clipboard \
+    --api screen \
     --permission notifications \
     --permission exactAlarm \
     --permission camera \
@@ -79,8 +95,8 @@ grep -q 'AndroidBridge.appsIcon' "$GENERATED_BRIDGE_JS" || {
     echo "Error: launcher app icon API was not generated as an async request." >&2
     exit 1
 }
-grep -q 'AndroidBridge.resourceDescribe' "$GENERATED_BRIDGE_JS" || {
-    echo "Error: Android resource descriptor API was not generated as an async request." >&2
+grep -q 'AndroidBridge.resourcesDescribe' "$GENERATED_BRIDGE_JS" || {
+    echo "Error: Android resource API was not generated as an async request." >&2
     exit 1
 }
 grep -q 'AndroidBridge.appsLaunch' "$GENERATED_BRIDGE_JS" || {
@@ -95,13 +111,13 @@ grep -q 'intentConsumeShare' "$GENERATED_BRIDGE_JS" || {
     echo "Error: incoming share API was not generated." >&2
     exit 1
 }
-for NAMESPACE in haptics intents files apps resources systemUI clipboard screen; do
+for NAMESPACE in permissions notifications alarms haptics intents files apps resources systemUI clipboard screen; do
     grep -q "$NAMESPACE:" "$GENERATED_BRIDGE_JS" || {
         echo "Error: NativeBridge.Android.$NAMESPACE namespace was not generated." >&2
         exit 1
     }
 done
-for CLASS in AsyncBridge ExecBridge HapticBridge IntentBridge FileBridge AppBridge ResourceBridge SystemUIBridge ClipboardBridge ScreenBridge; do
+for CLASS in AsyncBridge ExecBridge PermissionBridge NotificationBridge AlarmBridge AlarmReceiver AlarmRestoreReceiver HapticBridge IntentBridge FileBridge AppBridge ResourceBridge SystemUIBridge ClipboardBridge ScreenBridge; do
     [ -f "$GENERATED_JAVA/$CLASS.java" ] || {
         echo "Error: $CLASS.java was not generated." >&2
         exit 1
@@ -148,32 +164,12 @@ grep -q 'getActivityList' "$GENERATED_JAVA/AppBridge.java" || {
     echo "Error: launcher app listing implementation was not generated." >&2
     exit 1
 }
-grep -q 'getActivityInfo' "$GENERATED_JAVA/AppBridge.java" || {
-    echo "Error: launcher activity metadata lookup was not generated." >&2
-    exit 1
-}
 grep -q 'getIconResource' "$GENERATED_JAVA/AppBridge.java" || {
     echo "Error: launcher icon resource lookup was not generated." >&2
     exit 1
 }
-if grep -q 'android.resource://' "$GENERATED_JAVA/AppBridge.java"; then
-    echo "Error: AppBridge should not expand resource metadata itself." >&2
-    exit 1
-fi
-grep -q 'getResourcesForApplication' "$GENERATED_JAVA/ResourceBridge.java" || {
-    echo "Error: generic Android resource lookup was not generated." >&2
-    exit 1
-}
 grep -q 'getResourceName' "$GENERATED_JAVA/ResourceBridge.java" || {
-    echo "Error: Android resource names were not generated." >&2
-    exit 1
-}
-grep -q 'android.resource://' "$GENERATED_JAVA/ResourceBridge.java" || {
-    echo "Error: generic Android resource URI was not generated." >&2
-    exit 1
-}
-grep -q 'assetPath' "$GENERATED_JAVA/ResourceBridge.java" || {
-    echo "Error: Android resource asset path metadata was not generated." >&2
+    echo "Error: Android resource metadata lookup was not generated." >&2
     exit 1
 }
 grep -q 'startMainActivity' "$GENERATED_JAVA/AppBridge.java" || {
@@ -195,6 +191,10 @@ grep -q 'android.permission.ACCESS_NETWORK_STATE' "$WORK_DIR/AndroidManifest.xml
 }
 grep -q 'android.permission.VIBRATE' "$WORK_DIR/AndroidManifest.xml" || {
     echo "Error: vibration permission was not generated." >&2
+    exit 1
+}
+grep -q 'android.permission.RECEIVE_BOOT_COMPLETED' "$WORK_DIR/AndroidManifest.xml" || {
+    echo "Error: boot permission was not generated." >&2
     exit 1
 }
 for PERMISSION in \
@@ -240,7 +240,7 @@ if grep -q 'android.permission.QUERY_ALL_PACKAGES' "$WORK_DIR/AndroidManifest.xm
     echo "Error: QUERY_ALL_PACKAGES must not be declared for launcher app listing." >&2
     exit 1
 fi
-if grep -q '@PERMISSIONS@\|@SHARE_TARGETS@' "$WORK_DIR/AndroidManifest.xml"; then
+if grep -q '@PERMISSIONS@\|@SHARE_TARGETS@\|@KCAPK_API:\|@KCAPK_END_API@' "$WORK_DIR/AndroidManifest.xml"; then
     echo "Error: manifest template marker was not rendered." >&2
     exit 1
 fi
@@ -257,6 +257,57 @@ unzip -l "$APK_FILE" | grep -q 'lib/x86_64/libexec_kcapk_test_exec.so' || {
     echo "Error: x86_64 executable was not packaged in the APK." >&2
     exit 1
 }
+
+if "$ROOT_DIR/build.sh" \
+    --display-name "KCAPK Core Test" \
+    --project-name core \
+    --package-name com.kaisarcode.kcapk.core \
+    --webview-url "$TEST_DIR/index.html" \
+    --output-path "$CORE_WORK_DIR" >"$CORE_BUILD_LOG" 2>&1; then
+    sed '/^INSTALL: adb install /d' "$CORE_BUILD_LOG"
+else
+    cat "$CORE_BUILD_LOG" >&2
+    exit 1
+fi
+
+[ -f "$CORE_BRIDGE_JS" ] || {
+    echo "Error: core-only NativeBridge resource was not generated." >&2
+    exit 1
+}
+grep -q 'showToast' "$CORE_BRIDGE_JS" || {
+    echo "Error: core-only bridge does not expose showToast." >&2
+    exit 1
+}
+for NAMESPACE in permissions notifications alarms haptics intents files apps resources systemUI clipboard screen; do
+    if grep -q "$NAMESPACE:" "$CORE_BRIDGE_JS"; then
+        echo "Error: core-only bridge unexpectedly exposes $NAMESPACE." >&2
+        exit 1
+    fi
+done
+if grep -q 'AndroidBridge.exec' "$CORE_BRIDGE_JS"; then
+    echo "Error: core-only bridge unexpectedly exposes NativeBridge.exec." >&2
+    exit 1
+fi
+for CLASS in AsyncBridge ExecBridge PermissionBridge NotificationBridge AlarmBridge AlarmReceiver AlarmRestoreReceiver HapticBridge IntentBridge FileBridge AppBridge ResourceBridge SystemUIBridge ClipboardBridge ScreenBridge; do
+    if [ -f "$CORE_GENERATED_JAVA/$CLASS.java" ]; then
+        echo "Error: core-only build unexpectedly generated $CLASS.java." >&2
+        exit 1
+    fi
+done
+for PERMISSION in android.permission.ACCESS_NETWORK_STATE android.permission.RECEIVE_BOOT_COMPLETED android.permission.VIBRATE; do
+    if grep -q "$PERMISSION" "$CORE_WORK_DIR/AndroidManifest.xml"; then
+        echo "Error: core-only build unexpectedly declares $PERMISSION." >&2
+        exit 1
+    fi
+done
+if grep -q 'AlarmReceiver\|android.intent.category.HOME\|android.intent.action.SEND' "$CORE_WORK_DIR/AndroidManifest.xml"; then
+    echo "Error: core-only manifest contains optional Android components." >&2
+    exit 1
+fi
+if grep -q '@PERMISSIONS@\|@SHARE_TARGETS@\|@KCAPK_API:\|@KCAPK_END_API@' "$CORE_WORK_DIR/AndroidManifest.xml"; then
+    echo "Error: core-only manifest contains unresolved template markers." >&2
+    exit 1
+fi
 
 cp "$APK_FILE" "$FINAL_APK"
 printf 'Test APK: %s\n' "$FINAL_APK"

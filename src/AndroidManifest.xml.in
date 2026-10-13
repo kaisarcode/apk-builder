@@ -4,9 +4,15 @@
     android:versionCode="@VERSION_CODE@"
     android:versionName="@VERSION_NAME@">
     <uses-permission android:name="android.permission.INTERNET" />
+    <!-- @KCAPK_API:network@ -->
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <!-- @KCAPK_END_API@ -->
+    <!-- @KCAPK_API:alarms@ -->
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+    <!-- @KCAPK_END_API@ -->
+    <!-- @KCAPK_API:haptics@ -->
     <uses-permission android:name="android.permission.VIBRATE" />
+    <!-- @KCAPK_END_API@ -->
     @PERMISSIONS@
     <application
         android:allowBackup="true"
@@ -29,6 +35,7 @@
             </intent-filter>
             @SHARE_TARGETS@
         </activity>
+        <!-- @KCAPK_API:apps@ -->
         <activity-alias
             android:name="@PACKAGE_NAME@.HomeActivity"
             android:targetActivity="@PACKAGE_NAME@.MainActivity"
@@ -40,6 +47,8 @@
                 <category android:name="android.intent.category.DEFAULT" />
             </intent-filter>
         </activity-alias>
+        <!-- @KCAPK_END_API@ -->
+        <!-- @KCAPK_API:alarms@ -->
         <receiver
             android:name="@PACKAGE_NAME@.AlarmReceiver"
             android:exported="false" />
@@ -51,6 +60,7 @@
                 <action android:name="android.app.action.SCHEDULE_EXACT_ALARM_PERMISSION_STATE_CHANGED" />
             </intent-filter>
         </receiver>
+        <!-- @KCAPK_END_API@ -->
     </application>
     <uses-sdk android:minSdkVersion="@MIN_SDK@" android:targetSdkVersion="@TARGET_SDK@" />
 </manifest>

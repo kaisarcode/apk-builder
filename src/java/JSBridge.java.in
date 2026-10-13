@@ -13,41 +13,95 @@ import java.util.concurrent.atomic.AtomicLong;
 
 public class JSBridge {
     private static final String LOCAL_ASSET_PREFIX = "file:///android_asset/";
+    // @KCAPK_API:exec@
     private static final String[] EXECUTABLE_NAMES = { @EXECUTABLE_NAMES@ };
+    // @KCAPK_END_API@
     private final Context context;
     private final String[] trustedOrigins;
+    // @KCAPK_API:async@
     private final AsyncBridge asyncBridge;
+    // @KCAPK_END_API@
+    // @KCAPK_API:exec@
     private final ExecBridge execBridge;
+    // @KCAPK_END_API@
+    // @KCAPK_API:permissions@
     private final PermissionBridge permissionBridge;
+    // @KCAPK_END_API@
+    // @KCAPK_API:notifications@
     private final NotificationBridge notificationBridge;
+    // @KCAPK_END_API@
+    // @KCAPK_API:alarms@
     private final AlarmBridge alarmBridge;
+    // @KCAPK_END_API@
+    // @KCAPK_API:haptics@
     private final HapticBridge hapticBridge;
+    // @KCAPK_END_API@
+    // @KCAPK_API:intents@
     private final IntentBridge intentBridge;
+    // @KCAPK_END_API@
+    // @KCAPK_API:files@
     private final FileBridge fileBridge;
+    // @KCAPK_END_API@
+    // @KCAPK_API:apps@
     private final AppBridge appBridge;
+    // @KCAPK_END_API@
+    // @KCAPK_API:resources@
     private final ResourceBridge resourceBridge;
+    // @KCAPK_END_API@
+    // @KCAPK_API:systemUI@
     private final SystemUIBridge systemUIBridge;
+    // @KCAPK_END_API@
+    // @KCAPK_API:clipboard@
     private final ClipboardBridge clipboardBridge;
+    // @KCAPK_END_API@
+    // @KCAPK_API:screen@
     private final ScreenBridge screenBridge;
+    // @KCAPK_END_API@
     private final AtomicLong pageGeneration = new AtomicLong(0L);
     private volatile boolean bridgeAllowed;
 
     public JSBridge(Context context, WebView webView, String[] trustedOrigins) {
         this.context = context;
         this.trustedOrigins = trustedOrigins;
+        // @KCAPK_API:async@
         this.asyncBridge = new AsyncBridge((Activity) context, webView);
+        // @KCAPK_END_API@
+        // @KCAPK_API:exec@
         this.execBridge = new ExecBridge(context, asyncBridge, EXECUTABLE_NAMES);
+        // @KCAPK_END_API@
+        // @KCAPK_API:permissions@
         this.permissionBridge = new PermissionBridge(context, asyncBridge);
+        // @KCAPK_END_API@
+        // @KCAPK_API:notifications@
         this.notificationBridge = new NotificationBridge(context);
+        // @KCAPK_END_API@
+        // @KCAPK_API:alarms@
         this.alarmBridge = new AlarmBridge(context);
+        // @KCAPK_END_API@
+        // @KCAPK_API:haptics@
         this.hapticBridge = new HapticBridge(context);
+        // @KCAPK_END_API@
+        // @KCAPK_API:intents@
         this.intentBridge = new IntentBridge(context);
+        // @KCAPK_END_API@
+        // @KCAPK_API:files@
         this.fileBridge = new FileBridge((Activity) context, asyncBridge);
+        // @KCAPK_END_API@
+        // @KCAPK_API:apps@
         this.appBridge = new AppBridge(context, asyncBridge);
+        // @KCAPK_END_API@
+        // @KCAPK_API:resources@
         this.resourceBridge = new ResourceBridge(context, asyncBridge);
+        // @KCAPK_END_API@
+        // @KCAPK_API:systemUI@
         this.systemUIBridge = new SystemUIBridge(context);
+        // @KCAPK_END_API@
+        // @KCAPK_API:clipboard@
         this.clipboardBridge = new ClipboardBridge(context);
+        // @KCAPK_END_API@
+        // @KCAPK_API:screen@
         this.screenBridge = new ScreenBridge(context);
+        // @KCAPK_END_API@
     }
 
     public static boolean isTrustedUrl(String url, String[] trustedOrigins) {
@@ -112,8 +166,12 @@ public class JSBridge {
     public long beginPage(String url) {
         bridgeAllowed = isTrustedUrl(url, trustedOrigins);
         long generation = pageGeneration.incrementAndGet();
+        // @KCAPK_API:async@
         asyncBridge.setGeneration(generation);
+        // @KCAPK_END_API@
+        // @KCAPK_API:exec@
         execBridge.cancelStale(generation);
+        // @KCAPK_END_API@
         return generation;
     }
 
@@ -125,10 +183,12 @@ public class JSBridge {
         return bridgeAllowed;
     }
 
+    // @KCAPK_API:exec@
     @JavascriptInterface
     public boolean exec(long requestId, long generation, String json) {
         return canUseBridge() && execBridge.start(requestId, generation, json);
     }
+    // @KCAPK_END_API@
 
     @JavascriptInterface
     public void showToast(String message) {
@@ -138,6 +198,7 @@ public class JSBridge {
         Toast.makeText(context, message, Toast.LENGTH_SHORT).show();
     }
 
+    // @KCAPK_API:network@
     @JavascriptInterface
     public boolean isOnline() {
         if (!canUseBridge()) {
@@ -151,7 +212,9 @@ public class JSBridge {
         }
         return false;
     }
+    // @KCAPK_END_API@
 
+    // @KCAPK_API:permissions@
     @JavascriptInterface
     public boolean permissionHas(String name) {
         return canUseBridge() && permissionBridge.has(name);
@@ -161,7 +224,9 @@ public class JSBridge {
     public boolean permissionRequest(long requestId, long generation, String name) {
         return canUseBridge() && permissionBridge.request(requestId, generation, name);
     }
+    // @KCAPK_END_API@
 
+    // @KCAPK_API:notifications@
     @JavascriptInterface
     public boolean notificationCanPost() {
         return canUseBridge() && notificationBridge.canPost();
@@ -186,7 +251,9 @@ public class JSBridge {
     public boolean notificationCancelAll() {
         return canUseBridge() && notificationBridge.cancelAll();
     }
+    // @KCAPK_END_API@
 
+    // @KCAPK_API:alarms@
     @JavascriptInterface
     public boolean alarmCanScheduleExact() {
         return canUseBridge() && alarmBridge.canScheduleExact();
@@ -206,7 +273,9 @@ public class JSBridge {
     public boolean alarmCancelAll() {
         return canUseBridge() && alarmBridge.cancelAll();
     }
+    // @KCAPK_END_API@
 
+    // @KCAPK_API:haptics@
     @JavascriptInterface
     public boolean hapticHasVibrator() {
         return canUseBridge() && hapticBridge.hasVibrator();
@@ -226,7 +295,9 @@ public class JSBridge {
     public boolean hapticCancel() {
         return canUseBridge() && hapticBridge.cancel();
     }
+    // @KCAPK_END_API@
 
+    // @KCAPK_API:intents@
     @JavascriptInterface
     public boolean intentShare(String json) {
         return canUseBridge() && intentBridge.share(json);
@@ -246,12 +317,16 @@ public class JSBridge {
     public String intentConsumeShare() {
         return canUseBridge() ? intentBridge.consumeShare() : "";
     }
+    // @KCAPK_END_API@
 
+    // @KCAPK_API:files@
     @JavascriptInterface
     public boolean fileOpen(long requestId, long generation, String json) {
         return canUseBridge() && fileBridge.open(requestId, generation, json);
     }
+    // @KCAPK_END_API@
 
+    // @KCAPK_API:apps@
     @JavascriptInterface
     public boolean appsList(long requestId, long generation) {
         return canUseBridge() && appBridge.list(requestId, generation);
@@ -286,9 +361,11 @@ public class JSBridge {
     public boolean appsOpenHomeSettings() {
         return canUseBridge() && appBridge.openHomeSettings();
     }
+    // @KCAPK_END_API@
 
+    // @KCAPK_API:resources@
     @JavascriptInterface
-    public boolean resourceDescribe(
+    public boolean resourcesDescribe(
         long requestId,
         long generation,
         String packageName,
@@ -296,7 +373,9 @@ public class JSBridge {
     ) {
         return canUseBridge() && resourceBridge.describe(requestId, generation, packageName, resourceId);
     }
+    // @KCAPK_END_API@
 
+    // @KCAPK_API:systemUI@
     @JavascriptInterface
     public boolean systemUIStatusBar(String json) {
         return canUseBridge() && systemUIBridge.statusBar(json);
@@ -316,7 +395,9 @@ public class JSBridge {
     public boolean systemUIShowBars() {
         return canUseBridge() && systemUIBridge.showBars();
     }
+    // @KCAPK_END_API@
 
+    // @KCAPK_API:clipboard@
     @JavascriptInterface
     public boolean clipboardSet(String text) {
         return canUseBridge() && clipboardBridge.set(text);
@@ -336,33 +417,54 @@ public class JSBridge {
     public boolean clipboardClear() {
         return canUseBridge() && clipboardBridge.clear();
     }
+    // @KCAPK_END_API@
 
+    // @KCAPK_API:screen@
     @JavascriptInterface
     public boolean screenKeepOn(boolean enabled) {
         return canUseBridge() && screenBridge.keepOn(enabled);
     }
+    // @KCAPK_END_API@
 
+    // @KCAPK_API:permissions@
     public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] grantResults) {
         permissionBridge.onRequestPermissionsResult(requestCode, permissions, grantResults);
     }
+    // @KCAPK_END_API@
 
+    // @KCAPK_API:async@
     public void onActivityResult(int requestCode, int resultCode, Intent data) {
         asyncBridge.onActivityResult(requestCode, resultCode, data);
     }
+    // @KCAPK_END_API@
 
+    // @KCAPK_API:intents@
     public void onNewIntent(Intent intent) {
         intentBridge.receive(intent);
     }
+    // @KCAPK_END_API@
 
+    // @KCAPK_API:permissions@
     public void onResume() {
         permissionBridge.onResume();
     }
+    // @KCAPK_END_API@
 
     public void destroy() {
+        // @KCAPK_API:permissions@
         permissionBridge.destroy();
+        // @KCAPK_END_API@
+        // @KCAPK_API:exec@
         execBridge.destroy();
+        // @KCAPK_END_API@
+        // @KCAPK_API:apps@
         appBridge.destroy();
+        // @KCAPK_END_API@
+        // @KCAPK_API:resources@
         resourceBridge.destroy();
+        // @KCAPK_END_API@
+        // @KCAPK_API:async@
         asyncBridge.destroy();
+        // @KCAPK_END_API@
     }
 }
