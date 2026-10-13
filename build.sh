@@ -16,20 +16,32 @@ REQUEST_NETWORK_PERMISSION=false
 REQUEST_BOOT_PERMISSION=false
 REQUEST_VIBRATE_PERMISSION=false
 
+# Cleans up the temporary working directory.
+# @return None.
+# shellcheck disable=SC2317
 cleanup () {
     rm -rf "$WORK_DIR"
 }
 trap cleanup EXIT HUP INT TERM
 
+# Quotes a shell argument for safe reuse.
+# @param $1 Argument to quote.
+# @return Prints the quoted argument.
 quote_arg () {
     printf "'%s'" "$(printf '%s' "$1" | sed "s/'/'\\\\''/g")"
 }
 
+# Appends a quoted argument to the run arguments list.
+# @param $1 Argument to append.
+# @return None.
 append_arg () {
     QUOTED_ARG=$(quote_arg "$1")
     RUN_ARGS="$RUN_ARGS $QUOTED_ARG"
 }
 
+# Normalizes an API name alias to its canonical form.
+# @param $1 API name or alias.
+# @return Prints the normalized API name or fails.
 normalize_api_name () {
     case "$1" in
         core) printf '%s\n' core ;;
@@ -49,6 +61,9 @@ normalize_api_name () {
     esac
 }
 
+# Enables an optional API module for the build.
+# @param $1 API name to enable.
+# @return None.
 enable_api () {
     NORMALIZED_API=$(normalize_api_name "$1") || {
         echo "Error: Unknown --api value: $1" >&2
@@ -63,6 +78,9 @@ enable_api () {
     esac
 }
 
+# Checks if an API module is enabled.
+# @param $1 API name to check.
+# @return 0 if enabled, 1 otherwise.
 api_enabled () {
     case "$1" in
         core) return 0 ;;
@@ -137,6 +155,9 @@ cp -R "$SCRIPT_DIR/src" "$WORK_DIR/src" || exit 1
 rm -f "$WORK_DIR/src/build-main.sh"
 chmod +x "$WORK_DIR/build.sh"
 
+# Filters a template file, including/excluding API-specific blocks.
+# @param $1 Template file path.
+# @return None.
 filter_template_file () {
     INPUT_FILE="$1"
     OUTPUT_FILE="$INPUT_FILE.kcapk"
@@ -172,6 +193,10 @@ for TEMPLATE_FILE in "$WORK_DIR/src/AndroidManifest.xml.in" "$WORK_DIR/src/java/
 done
 
 MANIFEST_TEMPLATE="$WORK_DIR/src/AndroidManifest.xml.in"
+
+# Injects a permission declaration into the manifest template if not present.
+# @param $1 Android permission name.
+# @return None.
 inject_permission () {
     PERMISSION_NAME="$1"
     grep -q "android:name=\"$PERMISSION_NAME\"" "$MANIFEST_TEMPLATE" && return
