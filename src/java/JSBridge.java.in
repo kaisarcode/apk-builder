@@ -256,6 +256,16 @@ public class JSBridge {
     }
 
     @JavascriptInterface
+    public boolean appsIcon(
+        long requestId,
+        long generation,
+        String packageName,
+        String activityName
+    ) {
+        return canUseBridge() && appBridge.icon(requestId, generation, packageName, activityName);
+    }
+
+    @JavascriptInterface
     public boolean appsLaunch(String packageName, String activityName) {
         return canUseBridge() && appBridge.launch(packageName, activityName);
     }

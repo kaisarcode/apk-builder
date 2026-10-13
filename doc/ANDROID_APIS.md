@@ -482,6 +482,36 @@ var apps = await NativeBridge.Android.apps.list();
 
 A package may expose more than one launcher activity, so applications should treat the returned entries as launchable activities rather than assuming one entry per package.
 
+Icons are intentionally not included in `list()`.
+
+### Resolve an app icon resource
+
+```js
+var icon = await NativeBridge.Android.apps.icon(
+    app.packageName,
+    app.activityName
+);
+```
+
+`icon()` resolves the icon resource associated with the launcher activity. It returns a descriptor such as:
+
+```js
+{
+    packageName: "com.example.calculator",
+    activityName: "com.example.calculator.MainActivity",
+    resourceId: 2131230890,
+    uri: "android.resource://com.example.calculator/2131230890",
+    resourceType: "mipmap",
+    resourceName: "ic_launcher"
+}
+```
+
+`activityName` may be omitted to use the first launcher activity for the package.
+
+KCAPK does not rasterize, copy, encode, or otherwise transform the icon. Android's icon resource may itself resolve to a bitmap, vector drawable, adaptive icon, or another drawable resource. `uri` is `null` only when Android reports no concrete icon resource ID.
+
+The `android.resource://` URI references the resource inside the installed APK. The caller decides how or whether to consume that resource.
+
 ### Launch an app
 
 ```js
@@ -521,7 +551,7 @@ NativeBridge.Android.apps.openHomeSettings();
 
 The user remains in control of which launcher is the default. Enabling the alias only makes the generated app eligible to be selected as Home.
 
-This makes it possible to implement the launcher UI itself entirely in HTML, CSS, and JavaScript while keeping app discovery, launching, and Home registration in the native Android layer.
+This makes it possible to implement the launcher UI itself entirely in HTML, CSS, and JavaScript while keeping app discovery, icon resource lookup, launching, and Home registration in the native Android layer.
 
 ## System UI
 

@@ -3,9 +3,11 @@ package @PACKAGE_NAME@;
 import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
+import android.content.pm.ActivityInfo;
 import android.content.pm.LauncherActivityInfo;
 import android.content.pm.LauncherApps;
 import android.content.pm.PackageManager;
+import android.content.res.Resources;
 import android.os.Process;
 import android.os.UserHandle;
 import android.provider.Settings;
@@ -54,6 +56,50 @@ public class AppBridge {
             return true;
         } catch (Exception cause) {
             asyncBridge.reject(requestId, generation, "APP_LIST_FAILED", "Unable to start app query");
+            return true;
+        }
+    }
+
+    public boolean icon(
+        final long requestId,
+        final long generation,
+        final String packageName,
+        final String activityName
+    ) {
+        if (!asyncBridge.begin(requestId, generation)) {
+            return false;
+        }
+
+        if (packageName == null || packageName.isEmpty()) {
+            asyncBridge.reject(requestId, generation, "INVALID_ARGUMENT", "Package name is required");
+            return true;
+        }
+
+        try {
+            executor.execute(new Runnable() {
+                @Override
+                public void run() {
+                    try {
+                        asyncBridge.resolve(
+                            requestId,
+                            generation,
+                            queryIconResource(packageName, activityName)
+                        );
+                    } catch (PackageManager.NameNotFoundException cause) {
+                        asyncBridge.reject(requestId, generation, "APP_NOT_FOUND", "Launcher activity not found: " + packageName);
+                    } catch (Exception cause) {
+                        asyncBridge.reject(
+                            requestId,
+                            generation,
+                            "APP_ICON_FAILED",
+                            cause.getMessage() == null ? "Unable to resolve app icon resource" : cause.getMessage()
+                        );
+                    }
+                }
+            });
+            return true;
+        } catch (Exception cause) {
+            asyncBridge.reject(requestId, generation, "APP_ICON_FAILED", "Unable to start icon request");
             return true;
         }
     }
@@ -157,6 +203,51 @@ public class AppBridge {
         }
 
         return result;
+    }
+
+    private JSONObject queryIconResource(String packageName, String activityName) throws Exception {
+        LauncherActivityInfo launcherActivity = findLauncherActivity(packageName, activityName);
+        ComponentName component = launcherActivity.getComponentName();
+        PackageManager packageManager = context.getPackageManager();
+        ActivityInfo activityInfo = packageManager.getActivityInfo(component, 0);
+        int resourceId = activityInfo.getIconResource();
+
+        JSONObject result = new JSONObject();
+        result.put("packageName", component.getPackageName());
+        result.put("activityName", component.getClassName());
+        result.put("resourceId", resourceId);
+
+        if (resourceId == 0) {
+            result.put("uri", JSONObject.NULL);
+            result.put("resourceType", JSONObject.NULL);
+            result.put("resourceName", JSONObject.NULL);
+            return result;
+        }
+
+        Resources resources = packageManager.getResourcesForApplication(component.getPackageName());
+        String resourceType = resources.getResourceTypeName(resourceId);
+        String resourceName = resources.getResourceEntryName(resourceId);
+
+        result.put("uri", "android.resource://" + component.getPackageName() + "/" + resourceId);
+        result.put("resourceType", resourceType);
+        result.put("resourceName", resourceName);
+        return result;
+    }
+
+    private LauncherActivityInfo findLauncherActivity(String packageName, String activityName) throws Exception {
+        if (launcherApps == null) {
+            throw new IllegalStateException("LauncherApps service unavailable");
+        }
+
+        List<LauncherActivityInfo> apps = launcherApps.getActivityList(packageName, Process.myUserHandle());
+        for (LauncherActivityInfo info : apps) {
+            if (activityName == null || activityName.isEmpty() ||
+                activityName.equals(info.getComponentName().getClassName())) {
+                return info;
+            }
+        }
+
+        throw new PackageManager.NameNotFoundException(packageName);
     }
 
     private ComponentName homeComponent() {

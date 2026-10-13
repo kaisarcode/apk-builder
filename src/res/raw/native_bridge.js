@@ -247,6 +247,16 @@
                         return window.AndroidBridge.appsList(requestId, generation);
                     });
                 },
+                icon: function (packageName, activityName) {
+                    return asyncRequest(function (requestId, generation) {
+                        return window.AndroidBridge.appsIcon(
+                            requestId,
+                            generation,
+                            packageName,
+                            activityName || ""
+                        );
+                    });
+                },
                 launch: function (packageName, activityName) {
                     return window.AndroidBridge.appsLaunch(packageName, activityName || "");
                 },

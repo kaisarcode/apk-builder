@@ -75,6 +75,10 @@ grep -q 'AndroidBridge.appsList' "$GENERATED_BRIDGE_JS" || {
     echo "Error: launcher app listing was not generated as an async request." >&2
     exit 1
 }
+grep -q 'AndroidBridge.appsIcon' "$GENERATED_BRIDGE_JS" || {
+    echo "Error: launcher app icon API was not generated as an async request." >&2
+    exit 1
+}
 grep -q 'AndroidBridge.appsLaunch' "$GENERATED_BRIDGE_JS" || {
     echo "Error: launcher app launch API was not generated." >&2
     exit 1
@@ -138,6 +142,18 @@ grep -q 'LauncherApps' "$GENERATED_JAVA/AppBridge.java" || {
 }
 grep -q 'getActivityList' "$GENERATED_JAVA/AppBridge.java" || {
     echo "Error: launcher app listing implementation was not generated." >&2
+    exit 1
+}
+grep -q 'getActivityInfo' "$GENERATED_JAVA/AppBridge.java" || {
+    echo "Error: launcher activity metadata lookup was not generated." >&2
+    exit 1
+}
+grep -q 'getIconResource' "$GENERATED_JAVA/AppBridge.java" || {
+    echo "Error: launcher icon resource lookup was not generated." >&2
+    exit 1
+}
+grep -q 'android.resource://' "$GENERATED_JAVA/AppBridge.java" || {
+    echo "Error: launcher icon resource URI was not generated." >&2
     exit 1
 }
 grep -q 'startMainActivity' "$GENERATED_JAVA/AppBridge.java" || {
