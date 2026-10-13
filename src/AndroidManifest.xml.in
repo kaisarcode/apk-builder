@@ -5,10 +5,9 @@
     android:versionName="@VERSION_NAME@">
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
-    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
-    <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
     <uses-permission android:name="android.permission.VIBRATE" />
+    @PERMISSIONS@
     <application
         android:allowBackup="true"
         android:extractNativeLibs="true"
@@ -28,6 +27,7 @@
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
+            @SHARE_TARGETS@
         </activity>
         <receiver
             android:name="@PACKAGE_NAME@.AlarmReceiver"

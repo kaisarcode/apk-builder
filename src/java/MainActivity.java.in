@@ -50,9 +50,19 @@ public class MainActivity extends Activity {
         webView.setVerticalScrollBarEnabled(false);
 
         bridge = new JSBridge(this, webView, TRUSTED_ORIGINS);
+        bridge.onNewIntent(getIntent());
         webView.setWebViewClient(new TrustedWebViewClient(this, TRUSTED_ORIGINS, bridge));
         webView.addJavascriptInterface(bridge, JS_INTERFACE_NAME);
         webView.loadUrl(WEBVIEW_URL);
+    }
+
+    @Override
+    protected void onNewIntent(Intent intent) {
+        super.onNewIntent(intent);
+        setIntent(intent);
+        if (bridge != null) {
+            bridge.onNewIntent(intent);
+        }
     }
 
     @Override

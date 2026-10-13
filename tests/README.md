@@ -16,7 +16,13 @@ The test also packages prebuilt native Android executables through `--exec`. The
 
 The minimal source used for those fixtures is kept in `tests/fixtures/exec.c` for reference and reproducibility. It is not compiled by `tests/test.sh`.
 
-After building, the test inspects the APK and generated source and verifies the multi-ABI executable entries, NativeBridge Promise resource, async bridge classes, result forwarding, and required manifest entries.
+The test build declares several optional Android permissions and registers `*/*` as an incoming share target. This makes the test app appear in the Android Sharesheet for arbitrary files. It does not load shared file contents; it only reads metadata and shows a toast such as:
+
+```text
+Received shared photo.png
+```
+
+After building, the test inspects the APK and generated source and verifies the multi-ABI executable entries, NativeBridge Promise resource, async bridge classes, permission declarations, incoming share intent filters, result forwarding, and required manifest entries.
 
 When the app runs on a compatible Android device, press **Run packaged executable**. The page invokes:
 

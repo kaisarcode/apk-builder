@@ -5,6 +5,7 @@ import android.app.Activity;
 import android.app.AlarmManager;
 import android.content.Context;
 import android.content.Intent;
+import android.content.pm.PackageInfo;
 import android.content.pm.PackageManager;
 import android.net.Uri;
 import android.os.Build;
@@ -37,7 +38,10 @@ public class PermissionBridge {
 
     public boolean has(String name) {
         if (isExactAlarmPermission(name)) {
-            return canScheduleExactAlarms();
+            if (Build.VERSION.SDK_INT < 31) {
+                return true;
+            }
+            return isDeclared(Manifest.permission.SCHEDULE_EXACT_ALARM) && canScheduleExactAlarms();
         }
 
         String permission = resolvePermission(name);
@@ -49,7 +53,8 @@ public class PermissionBridge {
             return true;
         }
 
-        return context.checkSelfPermission(permission) == PackageManager.PERMISSION_GRANTED;
+        return isDeclared(permission) &&
+            context.checkSelfPermission(permission) == PackageManager.PERMISSION_GRANTED;
     }
 
     public boolean request(long requestId, long generation, String name) {
@@ -74,6 +79,16 @@ public class PermissionBridge {
 
         if (Manifest.permission.POST_NOTIFICATIONS.equals(permission) && Build.VERSION.SDK_INT < 33) {
             asyncBridge.resolve(requestId, generation, true);
+            return true;
+        }
+
+        if (!isDeclared(permission)) {
+            asyncBridge.reject(
+                requestId,
+                generation,
+                "PERMISSION_NOT_DECLARED",
+                "Permission not declared in AndroidManifest.xml: " + permission
+            );
             return true;
         }
 
@@ -161,7 +176,22 @@ public class PermissionBridge {
     }
 
     private void requestExactAlarms(long requestId, long generation) {
-        if (Build.VERSION.SDK_INT < 31 || canScheduleExactAlarms()) {
+        if (Build.VERSION.SDK_INT < 31) {
+            asyncBridge.resolve(requestId, generation, true);
+            return;
+        }
+
+        if (!isDeclared(Manifest.permission.SCHEDULE_EXACT_ALARM)) {
+            asyncBridge.reject(
+                requestId,
+                generation,
+                "PERMISSION_NOT_DECLARED",
+                "Permission not declared in AndroidManifest.xml: " + Manifest.permission.SCHEDULE_EXACT_ALARM
+            );
+            return;
+        }
+
+        if (canScheduleExactAlarms()) {
             asyncBridge.resolve(requestId, generation, true);
             return;
         }
@@ -212,6 +242,27 @@ public class PermissionBridge {
                 }
             }
         });
+    }
+
+    private boolean isDeclared(String permission) {
+        try {
+            PackageInfo info = context.getPackageManager().getPackageInfo(
+                context.getPackageName(),
+                PackageManager.GET_PERMISSIONS
+            );
+            String[] requestedPermissions = info.requestedPermissions;
+            if (requestedPermissions == null) {
+                return false;
+            }
+
+            for (String requestedPermission : requestedPermissions) {
+                if (permission.equals(requestedPermission)) {
+                    return true;
+                }
+            }
+        } catch (Exception ignored) {
+        }
+        return false;
     }
 
     private static boolean isExactAlarmPermission(String name) {

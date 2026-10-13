@@ -217,6 +217,17 @@
                 },
                 openAppSettings: function () {
                     return window.AndroidBridge.intentOpenAppSettings();
+                },
+                consumeShare: function () {
+                    var json = window.AndroidBridge.intentConsumeShare();
+                    if (!json) {
+                        return null;
+                    }
+                    try {
+                        return JSON.parse(json);
+                    } catch (cause) {
+                        return null;
+                    }
                 }
             },
             systemUI: {

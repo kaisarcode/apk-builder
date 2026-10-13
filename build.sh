@@ -56,6 +56,8 @@ fi
 CLEAN_ALL=false
 RELEASE_MODE=false
 EXECUTABLES=""
+PERMISSIONS=""
+SHARE_TARGETS=""
 CLI_TRUSTED_ORIGINS_SET=false
 
 while [ "$#" -gt 0 ]; do
@@ -120,6 +122,28 @@ while [ "$#" -gt 0 ]; do
 $1"
             else
                 TRUSTED_ORIGINS="$1"
+            fi
+            shift
+            ;;
+        --permission)
+            shift
+            [ "$#" -gt 0 ] || { echo "Error: --permission requires a value." >&2; exit 1; }
+            if [ -n "$PERMISSIONS" ]; then
+                PERMISSIONS="$PERMISSIONS
+$1"
+            else
+                PERMISSIONS="$1"
+            fi
+            shift
+            ;;
+        --share-target)
+            shift
+            [ "$#" -gt 0 ] || { echo "Error: --share-target requires a MIME type." >&2; exit 1; }
+            if [ -n "$SHARE_TARGETS" ]; then
+                SHARE_TARGETS="$SHARE_TARGETS
+$1"
+            else
+                SHARE_TARGETS="$1"
             fi
             shift
             ;;
@@ -323,6 +347,100 @@ extract_origin () {
     esac
 }
 
+# Resolves a build-time permission alias to an Android permission name.
+# @param $1 Permission alias or android.permission.* name.
+# @return Prints the Android permission name or fails.
+resolve_permission_name () {
+    case "$1" in
+        notifications) printf '%s\n' android.permission.POST_NOTIFICATIONS ;;
+        exactAlarm|exactAlarms) printf '%s\n' android.permission.SCHEDULE_EXACT_ALARM ;;
+        camera) printf '%s\n' android.permission.CAMERA ;;
+        microphone) printf '%s\n' android.permission.RECORD_AUDIO ;;
+        location|locationFine) printf '%s\n' android.permission.ACCESS_FINE_LOCATION ;;
+        locationCoarse) printf '%s\n' android.permission.ACCESS_COARSE_LOCATION ;;
+        android.permission.*)
+            [ "$1" != "android.permission." ] || return 1
+            case "$1" in
+                *[!A-Za-z0-9._]*) return 1 ;;
+            esac
+            printf '%s\n' "$1"
+            ;;
+        *) return 1 ;;
+    esac
+}
+
+# Generates optional uses-permission declarations for the manifest template.
+# @return None.
+prepare_permissions () {
+    PERMISSION_DECLARATIONS_FILE="$TEMP_ROOT_DIR/permissions.xml"
+    : > "$PERMISSION_DECLARATIONS_FILE"
+    SEEN_PERMISSIONS=""
+
+    [ -n "$PERMISSIONS" ] || return
+
+    while IFS= read -r PERMISSION_NAME; do
+        [ -n "$PERMISSION_NAME" ] || continue
+        RESOLVED_PERMISSION=$(resolve_permission_name "$PERMISSION_NAME") || {
+            echo "Error: Unknown permission alias: $PERMISSION_NAME. Use a supported alias or android.permission.*." >&2
+            exit 1
+        }
+
+        case "$RESOLVED_PERMISSION" in
+            android.permission.INTERNET|\
+            android.permission.ACCESS_NETWORK_STATE|\
+            android.permission.RECEIVE_BOOT_COMPLETED|\
+            android.permission.VIBRATE)
+                continue
+                ;;
+        esac
+
+        case " $SEEN_PERMISSIONS " in
+            *" $RESOLVED_PERMISSION "*)
+                continue
+                ;;
+        esac
+        SEEN_PERMISSIONS="$SEEN_PERMISSIONS $RESOLVED_PERMISSION"
+        printf '    <uses-permission android:name="%s" />\n' "$RESOLVED_PERMISSION" >> "$PERMISSION_DECLARATIONS_FILE"
+    done <<EOF
+$PERMISSIONS
+EOF
+}
+
+# Generates optional Android share target intent filters for the manifest template.
+# @return None.
+prepare_share_targets () {
+    SHARE_TARGET_DECLARATIONS_FILE="$TEMP_ROOT_DIR/share_targets.xml"
+    : > "$SHARE_TARGET_DECLARATIONS_FILE"
+    SEEN_SHARE_TARGETS=""
+
+    [ -n "$SHARE_TARGETS" ] || return
+
+    printf '%s\n' '            <intent-filter>' >> "$SHARE_TARGET_DECLARATIONS_FILE"
+    printf '%s\n' '                <action android:name="android.intent.action.SEND" />' >> "$SHARE_TARGET_DECLARATIONS_FILE"
+    printf '%s\n' '                <action android:name="android.intent.action.SEND_MULTIPLE" />' >> "$SHARE_TARGET_DECLARATIONS_FILE"
+    printf '%s\n' '                <category android:name="android.intent.category.DEFAULT" />' >> "$SHARE_TARGET_DECLARATIONS_FILE"
+
+    while IFS= read -r MIME_TYPE; do
+        [ -n "$MIME_TYPE" ] || continue
+        if ! printf '%s\n' "$MIME_TYPE" | grep -Eq '^[A-Za-z0-9.+*-]+/[A-Za-z0-9.+*-]+$'; then
+            echo "Error: Invalid MIME type for --share-target: $MIME_TYPE" >&2
+            exit 1
+        fi
+
+        case " $SEEN_SHARE_TARGETS " in
+            *" $MIME_TYPE "*)
+                continue
+                ;;
+        esac
+        SEEN_SHARE_TARGETS="$SEEN_SHARE_TARGETS $MIME_TYPE"
+        printf '                <data android:mimeType="%s" />\n' "$MIME_TYPE" >> "$SHARE_TARGET_DECLARATIONS_FILE"
+    done <<EOF
+$SHARE_TARGETS
+EOF
+
+    printf '%s\n' '            </intent-filter>' >> "$SHARE_TARGET_DECLARATIONS_FILE"
+}
+
 # Detects the Android ABI of an ELF executable.
 # @param $1 Executable path.
 # @return Prints the Android ABI name or fails.
@@ -460,6 +578,22 @@ prepare_source_templates () {
 
     echo "Writing Android source templates..."
     render_template "$MANIFEST_TEMPLATE" "$MANIFEST_FILE"
+
+    MANIFEST_DYNAMIC_TEMP="$TEMP_ROOT_DIR/AndroidManifest.dynamic"
+    while IFS= read -r LINE || [ -n "$LINE" ]; do
+        case "$LINE" in
+            *'@PERMISSIONS@'*)
+                cat "$PERMISSION_DECLARATIONS_FILE"
+                ;;
+            *'@SHARE_TARGETS@'*)
+                cat "$SHARE_TARGET_DECLARATIONS_FILE"
+                ;;
+            *)
+                printf '%s\n' "$LINE"
+                ;;
+        esac
+    done < "$MANIFEST_FILE" > "$MANIFEST_DYNAMIC_TEMP"
+    mv "$MANIFEST_DYNAMIC_TEMP" "$MANIFEST_FILE"
 
     for TEMPLATE_FILE in "$JAVA_TEMPLATE_DIR"/*.java.in; do
         [ -f "$TEMPLATE_FILE" ] || continue
@@ -604,6 +738,8 @@ mkdir -p "$SRC_DIR" "$LAYOUT_DIR" "$VALUES_DIR" "$OUTPUT_DIR" "$ASSETS_DIR" \
     "$MIPMAP_XXHDPI_DIR" "$MIPMAP_XXXHDPI_DIR" "$MIPMAP_ANYDPI_V26_DIR"
 rm -rf "$TEMP_ROOT_DIR"
 mkdir -p "$TEMP_CLASSES_DIR" "$FLAT_RES_DIR" "$R_PACKAGE_DIR" "$TEMP_BUILD_DATA_DIR" "$AAB_TEMP_DIR" "$NATIVE_LIBS_DIR"
+prepare_permissions
+prepare_share_targets
 prepare_executables
 
 DENSITY_PAIRS="mdpi:48x48 hdpi:72x72 xhdpi:96x96 xxhdpi:144x144 xxxhdpi:192x192"

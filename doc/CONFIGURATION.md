@@ -21,6 +21,8 @@ command-line option > environment variable > built-in default
 | `--icon-background <color>` | Adaptive launcher icon background. |
 | `--background <color>` | Activity, WebView, and system-bar startup background. |
 | `--trusted-origin <origin>` | Additional trusted bridge origin; repeatable. |
+| `--permission <name>` | Declare an optional Android permission; repeatable. |
+| `--share-target <mime>` | Accept incoming Android shares for a MIME type; repeatable. |
 | `--fullscreen` | Enable fullscreen mode. |
 | `--version-code <N>` | Android version code. |
 | `--version-name <name>` | Android version name. |
@@ -132,9 +134,100 @@ Remote bridge access can be extended with repeated options:
     --trusted-origin https://cdn.example.com
 ```
 
+`--trusted-origin` is repeatable.
+
 The `TRUSTED_ORIGINS` environment variable remains available as a whitespace-separated fallback.
 
 See [WebView and trusted origins](WEBVIEW.md) for the trust model.
+
+## Android permissions
+
+Optional permissions are declared at build time with repeatable `--permission` options:
+
+```sh
+./build.sh \
+    --permission notifications \
+    --permission camera \
+    --permission locationCoarse
+```
+
+Supported aliases include:
+
+```text
+notifications
+exactAlarm
+exactAlarms
+camera
+microphone
+location
+locationFine
+locationCoarse
+```
+
+KCAPK also accepts explicit Android permission names:
+
+```sh
+./build.sh --permission android.permission.RECORD_AUDIO
+```
+
+Aliases are resolved to `<uses-permission>` entries in the generated `AndroidManifest.xml`. Duplicate permissions are emitted only once.
+
+The following base permissions remain declared automatically because they support built-in KCAPK behavior:
+
+```text
+android.permission.INTERNET
+android.permission.ACCESS_NETWORK_STATE
+android.permission.RECEIVE_BOOT_COMPLETED
+android.permission.VIBRATE
+```
+
+`POST_NOTIFICATIONS` and `SCHEDULE_EXACT_ALARM` are optional and are not declared unless requested with `--permission notifications` or `--permission exactAlarm`.
+
+Runtime permission requests are separate from build-time declaration. For example:
+
+```js
+var granted = await NativeBridge.Android.permissions.request("camera");
+```
+
+requires the APK to have been built with:
+
+```sh
+--permission camera
+```
+
+If the permission is not declared, the Promise rejects with `PERMISSION_NOT_DECLARED` on Android versions where that permission is required.
+
+See [Android APIs](ANDROID_APIS.md) for runtime permission handling.
+
+## Incoming shares
+
+Incoming Android Sharesheet support is enabled at build time with repeatable `--share-target` options:
+
+```sh
+./build.sh \
+    --share-target 'image/*' \
+    --share-target 'application/pdf'
+```
+
+KCAPK adds `ACTION_SEND` and `ACTION_SEND_MULTIPLE` intent filters for those MIME types to the generated activity.
+
+A universal receiver can be built with:
+
+```sh
+./build.sh --share-target '*/*'
+```
+
+Android supports `*/*`, but it should normally be reserved for applications that intentionally accept arbitrary content. KCAPK's test application uses it to validate generic incoming file shares.
+
+Receiving a share does not require a storage permission by itself. Android delivers shared files as `content://` URIs and grants the receiving activity access through the incoming intent. KCAPK does not read file contents when receiving a share; it only captures the URI and metadata such as display name, MIME type, and size.
+
+Application code can consume the pending share with:
+
+```js
+var share = NativeBridge.Android.intents.consumeShare();
+```
+
+See [Android APIs](ANDROID_APIS.md) for the returned object.
 
 ## Native executables
 

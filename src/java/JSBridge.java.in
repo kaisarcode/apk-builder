@@ -237,6 +237,11 @@ public class JSBridge {
     }
 
     @JavascriptInterface
+    public String intentConsumeShare() {
+        return canUseBridge() ? intentBridge.consumeShare() : "";
+    }
+
+    @JavascriptInterface
     public boolean systemUIStatusBar(String json) {
         return canUseBridge() && systemUIBridge.statusBar(json);
     }
@@ -287,6 +292,10 @@ public class JSBridge {
 
     public void onActivityResult(int requestCode, int resultCode, Intent data) {
         asyncBridge.onActivityResult(requestCode, resultCode, data);
+    }
+
+    public void onNewIntent(Intent intent) {
+        intentBridge.receive(intent);
     }
 
     public void onResume() {

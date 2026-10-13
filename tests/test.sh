@@ -31,6 +31,13 @@ if "$ROOT_DIR/build.sh" \
     --project-name test \
     --package-name com.kaisarcode.kcapk.test \
     --webview-url "$TEST_DIR/index.html" \
+    --permission notifications \
+    --permission exactAlarm \
+    --permission camera \
+    --permission camera \
+    --permission locationCoarse \
+    --permission android.permission.RECORD_AUDIO \
+    --share-target '*/*' \
     --exec "$EXEC_ARM64" \
     --exec "$EXEC_X86_64" \
     --output-path "$WORK_DIR" >"$BUILD_LOG" 2>&1; then
@@ -60,6 +67,10 @@ grep -q 'AndroidBridge.permissionRequest(requestId, generation' "$GENERATED_BRID
     echo "Error: permission request was not generated as an async request." >&2
     exit 1
 }
+grep -q 'intentConsumeShare' "$GENERATED_BRIDGE_JS" || {
+    echo "Error: incoming share API was not generated." >&2
+    exit 1
+}
 for NAMESPACE in haptics intents systemUI clipboard screen; do
     grep -q "$NAMESPACE:" "$GENERATED_BRIDGE_JS" || {
         echo "Error: NativeBridge.Android.$NAMESPACE namespace was not generated." >&2
@@ -81,6 +92,18 @@ grep -q 'onActivityResult' "$GENERATED_JAVA/MainActivity.java" || {
     echo "Error: activity result forwarding was not generated." >&2
     exit 1
 }
+grep -q 'onNewIntent' "$GENERATED_JAVA/MainActivity.java" || {
+    echo "Error: incoming intent handling was not generated." >&2
+    exit 1
+}
+grep -q 'PERMISSION_NOT_DECLARED' "$GENERATED_JAVA/PermissionBridge.java" || {
+    echo "Error: undeclared permission handling was not generated." >&2
+    exit 1
+}
+grep -q 'OpenableColumns.DISPLAY_NAME' "$GENERATED_JAVA/IntentBridge.java" || {
+    echo "Error: incoming share metadata handling was not generated." >&2
+    exit 1
+}
 grep -q 'native_bridge' "$GENERATED_JAVA/TrustedWebViewClient.java" || {
     echo "Error: NativeBridge resource loading was not generated." >&2
     exit 1
@@ -90,14 +113,41 @@ grep -q 'android.permission.ACCESS_NETWORK_STATE' "$WORK_DIR/AndroidManifest.xml
     echo "Error: network state permission was not generated." >&2
     exit 1
 }
-grep -q 'android.permission.POST_NOTIFICATIONS' "$WORK_DIR/AndroidManifest.xml" || {
-    echo "Error: notification permission was not generated." >&2
-    exit 1
-}
 grep -q 'android.permission.VIBRATE' "$WORK_DIR/AndroidManifest.xml" || {
     echo "Error: vibration permission was not generated." >&2
     exit 1
 }
+for PERMISSION in \
+    android.permission.POST_NOTIFICATIONS \
+    android.permission.SCHEDULE_EXACT_ALARM \
+    android.permission.CAMERA \
+    android.permission.ACCESS_COARSE_LOCATION \
+    android.permission.RECORD_AUDIO; do
+    grep -q "$PERMISSION" "$WORK_DIR/AndroidManifest.xml" || {
+        echo "Error: requested permission was not generated: $PERMISSION" >&2
+        exit 1
+    }
+done
+[ "$(grep -c 'android.permission.CAMERA' "$WORK_DIR/AndroidManifest.xml")" -eq 1 ] || {
+    echo "Error: duplicate permission declarations were generated." >&2
+    exit 1
+}
+grep -q 'android.intent.action.SEND' "$WORK_DIR/AndroidManifest.xml" || {
+    echo "Error: ACTION_SEND share target was not generated." >&2
+    exit 1
+}
+grep -q 'android.intent.action.SEND_MULTIPLE' "$WORK_DIR/AndroidManifest.xml" || {
+    echo "Error: ACTION_SEND_MULTIPLE share target was not generated." >&2
+    exit 1
+}
+grep -Fq 'android:mimeType="*/*"' "$WORK_DIR/AndroidManifest.xml" || {
+    echo "Error: wildcard share target MIME type was not generated." >&2
+    exit 1
+}
+if grep -q '@PERMISSIONS@\|@SHARE_TARGETS@' "$WORK_DIR/AndroidManifest.xml"; then
+    echo "Error: manifest template marker was not rendered." >&2
+    exit 1
+fi
 grep -q 'AlarmReceiver' "$WORK_DIR/AndroidManifest.xml" || {
     echo "Error: alarm receiver was not generated." >&2
     exit 1

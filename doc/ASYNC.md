@@ -90,6 +90,7 @@ NATIVE_START_FAILED
 INVALID_NATIVE_RESPONSE
 INVALID_ARGUMENT
 ACTIVITY_UNAVAILABLE
+PERMISSION_NOT_DECLARED
 PERMISSION_REQUEST_FAILED
 BUSY
 EXEC_NOT_EXPOSED
@@ -124,13 +125,27 @@ See [External binaries](EXTERNAL_BINARIES.md) for the complete executable integr
 
 ## Permissions
 
-`NativeBridge.Android.permissions.request()` resolves to the effective permission state:
+Permission declaration and permission granting are separate operations.
 
-```js
-var granted = await NativeBridge.Android.permissions.request("notifications");
+Build-time declaration uses repeatable `--permission` options:
+
+```sh
+./build.sh --permission camera
 ```
 
-The Promise resolves:
+Runtime access then uses:
+
+```js
+var granted = await NativeBridge.Android.permissions.request("camera");
+```
+
+If Android requires the permission but it was not declared in the generated manifest, the Promise rejects with:
+
+```text
+PERMISSION_NOT_DECLARED
+```
+
+When declared, the Promise resolves to the effective permission state:
 
 ```text
 true  -> granted / available
@@ -142,6 +157,8 @@ Runtime permissions resolve from Android's permission-result callback.
 Special access such as exact alarms is checked again when the Activity resumes after returning from Android Settings.
 
 Only one runtime permission dialog and one exact-alarm settings request are allowed to be active at a time. A conflicting request rejects with `BUSY`.
+
+See [Configuration](CONFIGURATION.md) for build-time permission declaration and [Android APIs](ANDROID_APIS.md) for the runtime API.
 
 ## Activity results
 

@@ -32,6 +32,22 @@ The generated manifest includes `android.permission.ACCESS_NETWORK_STATE`.
 
 ## Permissions
 
+Android permissions have two distinct stages in KCAPK:
+
+1. build-time declaration in `AndroidManifest.xml`, and
+2. runtime permission or special-access flow when Android requires it.
+
+Optional permissions are declared with repeatable build options:
+
+```sh
+./build.sh \
+    --permission notifications \
+    --permission camera \
+    --permission locationCoarse
+```
+
+Then application code can query or request them at runtime:
+
 ```js
 NativeBridge.Android.permissions.has(name);
 await NativeBridge.Android.permissions.request(name);
@@ -70,15 +86,30 @@ locationFine
 locationCoarse
 ```
 
-A full Android permission string beginning with `android.permission.` may also be passed.
+A full Android permission string beginning with `android.permission.` may also be passed to both `--permission` and the runtime permission bridge.
 
-`notifications` maps to `POST_NOTIFICATIONS` and is treated as granted before Android API 33.
+`notifications` maps to `POST_NOTIFICATIONS` and is treated as granted before Android API 33. On API 33+, build with `--permission notifications` before requesting it.
 
-`exactAlarm` and `exactAlarms` refer to Android exact-alarm special access. Before API 31 this is treated as available. On newer Android versions, KCAPK opens the relevant Settings flow and resolves the Promise after the Activity resumes with the current exact-alarm state.
+`exactAlarm` and `exactAlarms` map to `SCHEDULE_EXACT_ALARM`. Before API 31 exact-alarm access is treated as available. On newer Android versions, build with `--permission exactAlarm`; KCAPK opens the relevant Settings flow and resolves the Promise after the Activity resumes with the current state.
+
+If Android requires a permission and it was not declared in the generated manifest, `request()` rejects with:
+
+```text
+PERMISSION_NOT_DECLARED
+```
 
 Only one runtime permission request and one exact-alarm special-access request may be active at a time. A conflicting request rejects with `BUSY`.
 
-Important: a permission must also be declared in the generated manifest to be usable. KCAPK currently declares permissions required by its built-in capabilities. Camera, microphone, and location aliases exist in the bridge implementation but are not declared by default.
+The following base permissions are declared automatically because KCAPK uses them for built-in behavior:
+
+```text
+android.permission.INTERNET
+android.permission.ACCESS_NETWORK_STATE
+android.permission.RECEIVE_BOOT_COMPLETED
+android.permission.VIBRATE
+```
+
+See [Configuration](CONFIGURATION.md) for build-time permission declaration.
 
 ## Notifications
 
@@ -94,7 +125,7 @@ NativeBridge.Android.notifications
 NativeBridge.Android.notifications.canPost();
 ```
 
-Returns `false` when notifications are disabled or when Android 13+ notification permission is not granted.
+Returns `false` when notifications are disabled or when Android 13+ notification permission is not granted. Apps targeting Android 13+ notification permission should be built with `--permission notifications`.
 
 ### Create a channel
 
@@ -208,7 +239,7 @@ KCAPK alarms are native Android alarms and can trigger while the WebView is not 
 NativeBridge.Android.alarms.canScheduleExact();
 ```
 
-On API 31+, exact alarms may require Android's Alarms & reminders special access.
+On API 31+, exact alarms may require Android's Alarms & reminders special access. Apps that use exact scheduling should be built with `--permission exactAlarm`.
 
 ### Schedule an alarm
 
@@ -321,6 +352,51 @@ NativeBridge.Android.intents.openAppSettings();
 ```
 
 Opens the Android application-details settings page for the generated app.
+
+### Receive shares
+
+Incoming shares are enabled at build time with one or more MIME types:
+
+```sh
+./build.sh \
+    --share-target 'image/*' \
+    --share-target 'application/pdf'
+```
+
+Then the pending Android share can be consumed synchronously:
+
+```js
+var share = NativeBridge.Android.intents.consumeShare();
+```
+
+The method returns `null` when there is no pending share. Otherwise it returns an object shaped like:
+
+```js
+{
+    action: "send",
+    type: "image/png",
+    text: "optional shared text",
+    subject: "optional subject",
+    files: [
+        {
+            uri: "content://...",
+            name: "photo.png",
+            type: "image/png",
+            size: 12345
+        }
+    ]
+}
+```
+
+For `ACTION_SEND_MULTIPLE`, `action` is `sendMultiple` and `files` may contain more than one item.
+
+KCAPK does not read or copy the shared file when receiving it. It keeps the incoming `content://` URI and queries metadata such as display name, MIME type, and size. Shared URI access is granted by Android through the incoming intent and may be temporary.
+
+The share is consumed once: after a successful `consumeShare()` call, a second call returns `null` until Android delivers another share.
+
+A universal share target can be declared with `--share-target '*/*'`, though applications should normally register only MIME types they actually understand. The KCAPK test app uses `*/*` specifically to validate generic file reception.
+
+See [Configuration](CONFIGURATION.md) for build-time share target declaration.
 
 ## System UI
 
