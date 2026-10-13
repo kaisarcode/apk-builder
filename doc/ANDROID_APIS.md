@@ -83,10 +83,10 @@ New Android integrations should remain general-purpose, live under `NativeBridge
 
 Every new public API should also receive a page under `doc/apis/` documenting activation, methods, permissions, async behavior, examples, and Android-specific constraints.
 
-## Next step
-
-Continue with [External binaries](EXTERNAL_BINARIES.md).
-
 ## Detailed reference
 
 [Detailed Android API reference](apis/README.md) - one page per optional Android capability with activation, usage, permissions, and platform behavior.
+
+## Next step
+
+Continue with [External binaries](EXTERNAL_BINARIES.md).
