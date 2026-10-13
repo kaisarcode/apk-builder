@@ -14,7 +14,7 @@ FINAL_APK="$TEST_DIR/test.apk"
 EXEC_ARM64="$TEST_DIR/fixtures/arm64-v8a/kcapk-test-exec"
 EXEC_X86_64="$TEST_DIR/fixtures/x86_64/kcapk-test-exec"
 GENERATED_JAVA="$WORK_DIR/src/main/java/com/kaisarcode/kcapk/test"
-GENERATED_BRIDGE_JS="$WORK_DIR/res/raw/native-bridge.js"
+GENERATED_BRIDGE_JS="$WORK_DIR/res/raw/native_bridge.js"
 
 # Removes the temporary working directory.
 # @return None.

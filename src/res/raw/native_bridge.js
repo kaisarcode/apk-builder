@@ -1,5 +1,5 @@
 /**
- * native-bridge.js
+ * native_bridge.js
  * Summary: JavaScript bridge for KCAPK WebView native communication.
  *
  * Author:  KaisarCode
