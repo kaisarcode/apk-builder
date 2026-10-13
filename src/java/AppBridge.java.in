@@ -1,0 +1,165 @@
+package @PACKAGE_NAME@;
+
+import android.content.ComponentName;
+import android.content.Context;
+import android.content.Intent;
+import android.content.pm.LauncherActivityInfo;
+import android.content.pm.LauncherApps;
+import android.content.pm.PackageManager;
+import android.os.Process;
+import android.os.UserHandle;
+import android.provider.Settings;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Comparator;
+import java.util.List;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import org.json.JSONArray;
+import org.json.JSONObject;
+
+public class AppBridge {
+    private final Context context;
+    private final AsyncBridge asyncBridge;
+    private final LauncherApps launcherApps;
+    private final ExecutorService executor = Executors.newSingleThreadExecutor();
+
+    public AppBridge(Context context, AsyncBridge asyncBridge) {
+        this.context = context;
+        this.asyncBridge = asyncBridge;
+        this.launcherApps = (LauncherApps) context.getSystemService(Context.LAUNCHER_APPS_SERVICE);
+    }
+
+    public boolean list(final long requestId, final long generation) {
+        if (!asyncBridge.begin(requestId, generation)) {
+            return false;
+        }
+
+        try {
+            executor.execute(new Runnable() {
+                @Override
+                public void run() {
+                    try {
+                        asyncBridge.resolve(requestId, generation, queryLauncherApps());
+                    } catch (Exception cause) {
+                        asyncBridge.reject(
+                            requestId,
+                            generation,
+                            "APP_LIST_FAILED",
+                            cause.getMessage() == null ? "Unable to list launcher apps" : cause.getMessage()
+                        );
+                    }
+                }
+            });
+            return true;
+        } catch (Exception cause) {
+            asyncBridge.reject(requestId, generation, "APP_LIST_FAILED", "Unable to start app query");
+            return true;
+        }
+    }
+
+    public boolean launch(String packageName, String activityName) {
+        if (launcherApps == null || packageName == null || packageName.isEmpty()) {
+            return false;
+        }
+
+        try {
+            UserHandle user = Process.myUserHandle();
+            ComponentName component = null;
+
+            if (activityName != null && !activityName.isEmpty()) {
+                component = new ComponentName(packageName, activityName);
+            } else {
+                List<LauncherActivityInfo> apps = launcherApps.getActivityList(packageName, user);
+                if (!apps.isEmpty()) {
+                    component = apps.get(0).getComponentName();
+                }
+            }
+
+            if (component == null) {
+                return false;
+            }
+
+            launcherApps.startMainActivity(component, user, null, null);
+            return true;
+        } catch (Exception ignored) {
+            return false;
+        }
+    }
+
+    public boolean homeEnabled() {
+        try {
+            int state = context.getPackageManager().getComponentEnabledSetting(homeComponent());
+            return state == PackageManager.COMPONENT_ENABLED_STATE_ENABLED;
+        } catch (Exception ignored) {
+            return false;
+        }
+    }
+
+    public boolean setHomeEnabled(boolean enabled) {
+        try {
+            context.getPackageManager().setComponentEnabledSetting(
+                homeComponent(),
+                enabled
+                    ? PackageManager.COMPONENT_ENABLED_STATE_ENABLED
+                    : PackageManager.COMPONENT_ENABLED_STATE_DISABLED,
+                PackageManager.DONT_KILL_APP
+            );
+            return true;
+        } catch (Exception ignored) {
+            return false;
+        }
+    }
+
+    public boolean openHomeSettings() {
+        try {
+            Intent intent = new Intent(Settings.ACTION_HOME_SETTINGS);
+            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+            context.startActivity(intent);
+            return true;
+        } catch (Exception ignored) {
+            return false;
+        }
+    }
+
+    public void destroy() {
+        executor.shutdownNow();
+    }
+
+    private JSONArray queryLauncherApps() throws Exception {
+        if (launcherApps == null) {
+            throw new IllegalStateException("LauncherApps service unavailable");
+        }
+
+        UserHandle user = Process.myUserHandle();
+        List<LauncherActivityInfo> resolved = launcherApps.getActivityList(null, user);
+        List<LauncherActivityInfo> apps = new ArrayList<LauncherActivityInfo>(resolved);
+        Collections.sort(apps, new Comparator<LauncherActivityInfo>() {
+            @Override
+            public int compare(LauncherActivityInfo left, LauncherActivityInfo right) {
+                CharSequence leftLabel = left.getLabel();
+                CharSequence rightLabel = right.getLabel();
+                String leftText = leftLabel == null ? "" : leftLabel.toString();
+                String rightText = rightLabel == null ? "" : rightLabel.toString();
+                return leftText.compareToIgnoreCase(rightText);
+            }
+        });
+
+        JSONArray result = new JSONArray();
+        for (LauncherActivityInfo info : apps) {
+            ComponentName component = info.getComponentName();
+            JSONObject app = new JSONObject();
+            CharSequence label = info.getLabel();
+            app.put("label", label == null ? component.getPackageName() : label.toString());
+            app.put("packageName", component.getPackageName());
+            app.put("activityName", component.getClassName());
+            result.put(app);
+        }
+
+        return result;
+    }
+
+    private ComponentName homeComponent() {
+        return new ComponentName(context.getPackageName(), context.getPackageName() + ".HomeActivity");
+    }
+}

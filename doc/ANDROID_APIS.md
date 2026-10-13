@@ -454,6 +454,75 @@ A universal share target can be declared with `--share-target '*/*'`, though app
 
 See [Configuration](CONFIGURATION.md) for build-time share target declaration.
 
+## Apps and launcher integration
+
+Namespace:
+
+```js
+NativeBridge.Android.apps
+```
+
+KCAPK uses Android's `LauncherApps` service for launcher-oriented app discovery and launching. It does not request `QUERY_ALL_PACKAGES`.
+
+### List launchable apps
+
+```js
+var apps = await NativeBridge.Android.apps.list();
+```
+
+`list()` returns a Promise resolving to the launchable activities for the current Android user. Each item has the form:
+
+```js
+{
+    label: "Calculator",
+    packageName: "com.example.calculator",
+    activityName: "com.example.calculator.MainActivity"
+}
+```
+
+A package may expose more than one launcher activity, so applications should treat the returned entries as launchable activities rather than assuming one entry per package.
+
+### Launch an app
+
+```js
+NativeBridge.Android.apps.launch(app.packageName, app.activityName);
+```
+
+`launch()` starts the specified launcher activity and returns whether Android accepted the launch request.
+
+The activity name is optional. When omitted, KCAPK launches the first launcher activity it finds for that package:
+
+```js
+NativeBridge.Android.apps.launch("com.example.app");
+```
+
+### Home launcher candidate
+
+Generated KCAPK apps contain a disabled `CATEGORY_HOME` activity alias. Normal generated apps therefore do not appear as Home candidates by default.
+
+Check its state:
+
+```js
+NativeBridge.Android.apps.homeEnabled();
+```
+
+Enable or disable the Home candidate:
+
+```js
+NativeBridge.Android.apps.setHomeEnabled(true);
+NativeBridge.Android.apps.setHomeEnabled(false);
+```
+
+After enabling it, open Android's Home selection screen:
+
+```js
+NativeBridge.Android.apps.openHomeSettings();
+```
+
+The user remains in control of which launcher is the default. Enabling the alias only makes the generated app eligible to be selected as Home.
+
+This makes it possible to implement the launcher UI itself entirely in HTML, CSS, and JavaScript while keeping app discovery, launching, and Home registration in the native Android layer.
+
 ## System UI
 
 Namespace:

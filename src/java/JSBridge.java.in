@@ -24,6 +24,7 @@ public class JSBridge {
     private final HapticBridge hapticBridge;
     private final IntentBridge intentBridge;
     private final FileBridge fileBridge;
+    private final AppBridge appBridge;
     private final SystemUIBridge systemUIBridge;
     private final ClipboardBridge clipboardBridge;
     private final ScreenBridge screenBridge;
@@ -41,6 +42,7 @@ public class JSBridge {
         this.hapticBridge = new HapticBridge(context);
         this.intentBridge = new IntentBridge(context);
         this.fileBridge = new FileBridge((Activity) context, asyncBridge);
+        this.appBridge = new AppBridge(context, asyncBridge);
         this.systemUIBridge = new SystemUIBridge(context);
         this.clipboardBridge = new ClipboardBridge(context);
         this.screenBridge = new ScreenBridge(context);
@@ -249,6 +251,31 @@ public class JSBridge {
     }
 
     @JavascriptInterface
+    public boolean appsList(long requestId, long generation) {
+        return canUseBridge() && appBridge.list(requestId, generation);
+    }
+
+    @JavascriptInterface
+    public boolean appsLaunch(String packageName, String activityName) {
+        return canUseBridge() && appBridge.launch(packageName, activityName);
+    }
+
+    @JavascriptInterface
+    public boolean appsHomeEnabled() {
+        return canUseBridge() && appBridge.homeEnabled();
+    }
+
+    @JavascriptInterface
+    public boolean appsSetHomeEnabled(boolean enabled) {
+        return canUseBridge() && appBridge.setHomeEnabled(enabled);
+    }
+
+    @JavascriptInterface
+    public boolean appsOpenHomeSettings() {
+        return canUseBridge() && appBridge.openHomeSettings();
+    }
+
+    @JavascriptInterface
     public boolean systemUIStatusBar(String json) {
         return canUseBridge() && systemUIBridge.statusBar(json);
     }
@@ -312,6 +339,7 @@ public class JSBridge {
     public void destroy() {
         permissionBridge.destroy();
         execBridge.destroy();
+        appBridge.destroy();
         asyncBridge.destroy();
     }
 }

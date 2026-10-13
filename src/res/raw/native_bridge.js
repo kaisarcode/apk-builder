@@ -241,6 +241,25 @@
                     });
                 }
             },
+            apps: {
+                list: function () {
+                    return asyncRequest(function (requestId, generation) {
+                        return window.AndroidBridge.appsList(requestId, generation);
+                    });
+                },
+                launch: function (packageName, activityName) {
+                    return window.AndroidBridge.appsLaunch(packageName, activityName || "");
+                },
+                homeEnabled: function () {
+                    return window.AndroidBridge.appsHomeEnabled();
+                },
+                setHomeEnabled: function (enabled) {
+                    return window.AndroidBridge.appsSetHomeEnabled(!!enabled);
+                },
+                openHomeSettings: function () {
+                    return window.AndroidBridge.appsOpenHomeSettings();
+                }
+            },
             systemUI: {
                 statusBar: function (options) {
                     return window.AndroidBridge.systemUIStatusBar(JSON.stringify(options || {}));

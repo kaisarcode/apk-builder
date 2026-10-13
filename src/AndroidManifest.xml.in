@@ -29,6 +29,17 @@
             </intent-filter>
             @SHARE_TARGETS@
         </activity>
+        <activity-alias
+            android:name="@PACKAGE_NAME@.HomeActivity"
+            android:targetActivity="@PACKAGE_NAME@.MainActivity"
+            android:enabled="false"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.HOME" />
+                <category android:name="android.intent.category.DEFAULT" />
+            </intent-filter>
+        </activity-alias>
         <receiver
             android:name="@PACKAGE_NAME@.AlarmReceiver"
             android:exported="false" />

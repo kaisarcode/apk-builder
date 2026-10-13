@@ -266,6 +266,31 @@
             </div>
         </section>
 
+        <section class="section">
+            <div class="section-header">
+                <h2 class="section-title">Launcher</h2>
+                <p class="section-description">List and launch Android apps or enable KCAPK as a Home candidate.</p>
+            </div>
+            <div class="grid">
+                <button id="list-apps" type="button">
+                    <span class="button-title">List apps</span>
+                    <span class="button-detail">Query launchable activities</span>
+                </button>
+                <button id="launch-app" type="button">
+                    <span class="button-title">Launch first app</span>
+                    <span class="button-detail">Uses the last app list</span>
+                </button>
+                <button id="home-mode" type="button">
+                    <span class="button-title">Home candidate</span>
+                    <span class="button-detail">Enable or disable launcher role candidate</span>
+                </button>
+                <button id="home-settings" type="button">
+                    <span class="button-title">Home settings</span>
+                    <span class="button-detail">Choose the default launcher</span>
+                </button>
+            </div>
+        </section>
+
         <div class="footer">KCAPK · Android WebView App Builder</div>
     </main>
 
@@ -273,6 +298,7 @@
         var keepScreenEnabled = false;
         var keepScreenButton = document.getElementById("keep-screen");
         var selectedFile = null;
+        var launcherApps = [];
         var shareRetryCount = 0;
 
         function toast(message) {
@@ -384,6 +410,42 @@
             });
             if (!opened) {
                 toast("Unable to open Sharesheet");
+            }
+        });
+
+        document.getElementById("list-apps").addEventListener("click", async function () {
+            try {
+                launcherApps = await NativeBridge.Android.apps.list();
+                toast("Launcher apps: " + launcherApps.length);
+            } catch (error) {
+                toast(errorText(error));
+            }
+        });
+
+        document.getElementById("launch-app").addEventListener("click", function () {
+            var app = launcherApps.find(function (candidate) {
+                return candidate.packageName !== "com.kaisarcode.kcapk.test";
+            });
+            if (!app) {
+                toast("List apps first");
+                return;
+            }
+
+            var launched = NativeBridge.Android.apps.launch(app.packageName, app.activityName);
+            if (!launched) {
+                toast("Unable to launch " + app.label);
+            }
+        });
+
+        document.getElementById("home-mode").addEventListener("click", function () {
+            var enabled = NativeBridge.Android.apps.homeEnabled();
+            var changed = NativeBridge.Android.apps.setHomeEnabled(!enabled);
+            toast(changed ? "Home candidate: " + (!enabled ? "ON" : "OFF") : "Unable to change Home candidate");
+        });
+
+        document.getElementById("home-settings").addEventListener("click", function () {
+            if (!NativeBridge.Android.apps.openHomeSettings()) {
+                toast("Unable to open Home settings");
             }
         });
 

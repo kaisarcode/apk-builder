@@ -22,7 +22,7 @@ The test build declares several optional Android permissions and registers `*/*`
 Received shared photo.png
 ```
 
-After building, the test inspects the APK and generated source and verifies the multi-ABI executable entries, NativeBridge Promise resource, async bridge classes, permission declarations, incoming share intent filters, result forwarding, and required manifest entries.
+After building, the test inspects the APK and generated source and verifies the multi-ABI executable entries, NativeBridge Promise resource, async bridge classes, permission declarations, incoming share intent filters, launcher integration, result forwarding, and required manifest entries.
 
 When the app runs on a compatible Android device, press **Run packaged executable**. The page invokes:
 
@@ -36,6 +36,6 @@ The bundled fixture resolves with:
 kcapk external executable OK
 ```
 
-The app also includes a **Parallel exec** control that starts two executable requests concurrently and a **Notifications permission** control that tests the asynchronous Android permission result.
+The test UI also covers parallel executables, asynchronous permissions, file picking and sharing, launcher-app discovery and launching, and enabling the generated app as an Android Home candidate. The Home alias is disabled by default; **Home settings** opens Android's launcher selection screen after the candidate is enabled.
 
 The Android build workspace is created in a temporary directory outside `tests/` and removed when the test finishes. Only `tests/test.apk` is kept as the generated test artifact.

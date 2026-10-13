@@ -71,17 +71,29 @@ grep -q 'AndroidBridge.fileOpen' "$GENERATED_BRIDGE_JS" || {
     echo "Error: file picker was not generated as an async request." >&2
     exit 1
 }
+grep -q 'AndroidBridge.appsList' "$GENERATED_BRIDGE_JS" || {
+    echo "Error: launcher app listing was not generated as an async request." >&2
+    exit 1
+}
+grep -q 'AndroidBridge.appsLaunch' "$GENERATED_BRIDGE_JS" || {
+    echo "Error: launcher app launch API was not generated." >&2
+    exit 1
+}
+grep -q 'AndroidBridge.appsSetHomeEnabled' "$GENERATED_BRIDGE_JS" || {
+    echo "Error: Home candidate API was not generated." >&2
+    exit 1
+}
 grep -q 'intentConsumeShare' "$GENERATED_BRIDGE_JS" || {
     echo "Error: incoming share API was not generated." >&2
     exit 1
 }
-for NAMESPACE in haptics intents files systemUI clipboard screen; do
+for NAMESPACE in haptics intents files apps systemUI clipboard screen; do
     grep -q "$NAMESPACE:" "$GENERATED_BRIDGE_JS" || {
         echo "Error: NativeBridge.Android.$NAMESPACE namespace was not generated." >&2
         exit 1
     }
 done
-for CLASS in AsyncBridge ExecBridge HapticBridge IntentBridge FileBridge SystemUIBridge ClipboardBridge ScreenBridge; do
+for CLASS in AsyncBridge ExecBridge HapticBridge IntentBridge FileBridge AppBridge SystemUIBridge ClipboardBridge ScreenBridge; do
     [ -f "$GENERATED_JAVA/$CLASS.java" ] || {
         echo "Error: $CLASS.java was not generated." >&2
         exit 1
@@ -118,6 +130,22 @@ grep -q 'OpenableColumns.DISPLAY_NAME' "$GENERATED_JAVA/IntentBridge.java" || {
 }
 grep -q 'FLAG_GRANT_READ_URI_PERMISSION' "$GENERATED_JAVA/IntentBridge.java" || {
     echo "Error: shared file URI read grant was not generated." >&2
+    exit 1
+}
+grep -q 'LauncherApps' "$GENERATED_JAVA/AppBridge.java" || {
+    echo "Error: Android LauncherApps integration was not generated." >&2
+    exit 1
+}
+grep -q 'getActivityList' "$GENERATED_JAVA/AppBridge.java" || {
+    echo "Error: launcher app listing implementation was not generated." >&2
+    exit 1
+}
+grep -q 'startMainActivity' "$GENERATED_JAVA/AppBridge.java" || {
+    echo "Error: launcher app start implementation was not generated." >&2
+    exit 1
+}
+grep -q 'Settings.ACTION_HOME_SETTINGS' "$GENERATED_JAVA/AppBridge.java" || {
+    echo "Error: Home settings integration was not generated." >&2
     exit 1
 }
 grep -q 'native_bridge' "$GENERATED_JAVA/TrustedWebViewClient.java" || {
@@ -160,6 +188,22 @@ grep -Fq 'android:mimeType="*/*"' "$WORK_DIR/AndroidManifest.xml" || {
     echo "Error: wildcard share target MIME type was not generated." >&2
     exit 1
 }
+grep -q 'android.intent.category.HOME' "$WORK_DIR/AndroidManifest.xml" || {
+    echo "Error: Home launcher activity alias was not generated." >&2
+    exit 1
+}
+grep -q 'android:name="com.kaisarcode.kcapk.test.HomeActivity"' "$WORK_DIR/AndroidManifest.xml" || {
+    echo "Error: Home activity alias name was not generated." >&2
+    exit 1
+}
+grep -q 'android:enabled="false"' "$WORK_DIR/AndroidManifest.xml" || {
+    echo "Error: Home activity alias must be disabled by default." >&2
+    exit 1
+}
+if grep -q 'android.permission.QUERY_ALL_PACKAGES' "$WORK_DIR/AndroidManifest.xml"; then
+    echo "Error: QUERY_ALL_PACKAGES must not be declared for launcher app listing." >&2
+    exit 1
+fi
 if grep -q '@PERMISSIONS@\|@SHARE_TARGETS@' "$WORK_DIR/AndroidManifest.xml"; then
     echo "Error: manifest template marker was not rendered." >&2
     exit 1
