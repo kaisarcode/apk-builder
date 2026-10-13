@@ -4,34 +4,43 @@ KCAPK is a small command-line Android builder designed to keep the build process
 
 ## Source layout
 
-KCAPK separates the public build entrypoint, build engine, and reusable Android source material:
+KCAPK separates the public build entrypoint, focused builder modules, and reusable Android source material:
 
 ```text
 build.sh
 src/
-├── build-main.sh
-├── AndroidManifest.xml.in
-├── assets/
-├── java/
-└── res/
+├── build/
+│   ├── apis.sh
+│   ├── config.sh
+│   ├── executables.sh
+│   ├── package.sh
+│   ├── permissions.sh
+│   ├── pipeline.sh
+│   ├── sdk.sh
+│   └── templates.sh
+└── templates/
+    ├── AndroidManifest.xml.in
+    ├── assets/
+    ├── java/
+    └── res/
 tests/
 doc/
 ```
 
-`build.sh` is the user-facing entrypoint. It resolves NativeBridge API selection and prepares a temporary reduced source tree.
+`build.sh` is the user-facing entrypoint. It loads the builder modules, resolves NativeBridge API selection, prepares a temporary reduced template tree, and starts the build pipeline.
 
-`src/build-main.sh` is the internal Android build engine. It receives the filtered source tree and performs the SDK, resource, Java, DEX, APK, and AAB build steps.
+The modules under `src/build/` keep configuration, SDK setup, API selection, template handling, executable packaging, APK/AAB packaging, and pipeline orchestration separate and directly inspectable.
 
-Android templates and resources remain under `src/` so native source stays readable instead of being embedded as shell-script strings.
+Android templates and resources live under `src/templates/` so native source stays readable instead of being embedded as shell-script strings.
 
 ## Build pipeline
 
 A normal build performs these stages:
 
 1. Parse the user-facing options and resolve repeatable `--api` selections.
-2. Create a temporary source view containing only selected NativeBridge APIs and required internal dependencies.
-3. Remove disabled bridge classes, JavaScript namespaces, lifecycle hooks, and API-specific Manifest components from that temporary source view.
-4. Delegate to the internal build engine.
+2. Create a temporary template view containing only selected NativeBridge APIs and required internal dependencies.
+3. Remove disabled bridge classes, JavaScript namespaces, lifecycle hooks, and API-specific Manifest components from that temporary template view.
+4. Run the focused builder modules against the reduced template tree.
 5. Resolve remaining configuration from command-line options, environment variables, and defaults.
 6. Locate or bootstrap the Android SDK command-line tools.
 7. Prepare the generated Android project and resources.
@@ -44,7 +53,7 @@ A normal build performs these stages:
 14. Build, align, and sign the debug APK.
 15. Optionally build an AAB through BundleTool.
 
-The temporary source view exists only for the build. The canonical templates in the repository stay complete.
+The temporary template view exists only for the build. The canonical templates in the repository stay complete.
 
 The generated Android project remains under the configured output directory so its selected source and intermediate output can be inspected.
 
